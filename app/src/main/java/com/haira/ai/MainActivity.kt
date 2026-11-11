@@ -1,23 +1,29 @@
 package com.haira.ai
 
-import android.os.Bundle
+import android.app.Activity
 import android.content.Intent
+import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -25,9 +31,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.json.JSONArray
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 private data class ChatMessage(val text: String, val fromUser: Boolean, val time: Long = System.currentTimeMillis())
+
+private val Bg = Color(0xFF050912)
+private val Panel = Color(0xFF0D1826)
+private val Panel2 = Color(0xFF122437)
+private val Cyan = Color(0xFF55E6F2)
+private val Muted = Color(0xFF8CA4B8)
+private val Gold = Color(0xFFD7B56D)
 
 class MainActivity : ComponentActivity() {
     private var tts: TextToSpeech? = null
@@ -39,7 +54,9 @@ class MainActivity : ComponentActivity() {
             ttsReady = status == TextToSpeech.SUCCESS
             if (ttsReady) {
                 val result = tts?.setLanguage(Locale("en", "IN"))
-                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) tts?.setLanguage(Locale.getDefault())
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    tts?.setLanguage(Locale.getDefault())
+                }
             }
         }
         setContent { HairaApp(::loadMessages, ::saveMessages, ::speakReply, ::clearMessages) }
@@ -58,12 +75,19 @@ class MainActivity : ComponentActivity() {
 
     private fun saveMessages(messages: List<ChatMessage>) {
         val array = JSONArray()
-        messages.takeLast(150).forEach { array.put(JSONObject().put("text", it.text).put("fromUser", it.fromUser).put("time", it.time)) }
+        messages.takeLast(300).forEach {
+            array.put(JSONObject().put("text", it.text).put("fromUser", it.fromUser).put("time", it.time))
+        }
         getSharedPreferences("haira_chat", MODE_PRIVATE).edit().putString("messages", array.toString()).apply()
     }
 
-    private fun clearMessages() { getSharedPreferences("haira_chat", MODE_PRIVATE).edit().remove("messages").apply() }
-    private fun speakReply(text: String) { if (ttsReady) tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "haira_reply") }
+    private fun clearMessages() {
+        getSharedPreferences("haira_chat", MODE_PRIVATE).edit().remove("messages").apply()
+    }
+
+    private fun speakReply(text: String) {
+        if (ttsReady) tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "haira_reply")
+    }
 
     override fun onDestroy() {
         tts?.stop()
@@ -80,11 +104,13 @@ private fun HairaApp(
     speak: (String) -> Unit,
     clearMessages: () -> Unit
 ) {
-    val cyan = Color(0xFF35D9F2)
     var messages by remember { mutableStateOf(loadMessages()) }
+    var selectedTab by remember { mutableStateOf("HOME") }
     var draft by remember { mutableStateOf("") }
+    var search by remember { mutableStateOf("") }
+
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
+        if (result.resultCode == Activity.RESULT_OK) {
             val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
             if (!spoken.isNullOrBlank()) draft = listOf(draft.trim(), spoken).filter { it.isNotBlank() }.joinToString(" ")
         }
@@ -93,85 +119,305 @@ private fun HairaApp(
     fun sendMessage() {
         val text = draft.trim()
         if (text.isEmpty()) return
-        val updated = (messages + ChatMessage(text, true) + ChatMessage(localReply(text), false)).takeLast(150)
-        messages = updated
-        saveMessages(updated)
+        val userMessage = ChatMessage(text, true)
+        val answer = ChatMessage(
+            "I have saved your message on this device. My on-device AI model is not installed in this build yet, so I will not pretend this is an intelligent answer. The AI engine is still a development task.",
+            false
+        )
+        messages = (messages + userMessage + answer).takeLast(300)
+        saveMessages(messages)
         draft = ""
     }
 
-    MaterialTheme(colorScheme = darkColorScheme(primary = cyan, background = Color(0xFF050A12), surface = Color(0xFF101C2A))) {
-        Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF10283A), Color(0xFF050A12)))).padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+    MaterialTheme(colorScheme = darkColorScheme(primary = Cyan, background = Bg, surface = Panel)) {
+        Scaffold(
+            containerColor = Bg,
+            bottomBar = {
+                NavigationBar(containerColor = Color(0xFF09121E), contentColor = Cyan) {
+                    listOf("HOME", "CHAT", "MEMORY", "SETTINGS").forEach { tab ->
+                        NavigationBarItem(
+                            selected = selectedTab == tab,
+                            onClick = { selectedTab = tab },
+                            icon = { Text(when (tab) { "HOME" -> "⌂"; "CHAT" -> "◌"; "MEMORY" -> "▤"; else -> "⚙" }, fontSize = 20.sp) },
+                            label = { Text(tab, fontSize = 9.sp, letterSpacing = 1.sp) },
+                            colors = NavigationBarItemDefaults.colors(selectedIconColor = Cyan, selectedTextColor = Cyan, indicatorColor = Color(0xFF173044), unselectedIconColor = Muted, unselectedTextColor = Muted)
+                        )
+                    }
+                }
+            }
+        ) { padding ->
+            Column(
+                Modifier.fillMaxSize().padding(padding)
+                    .background(Brush.verticalGradient(listOf(Color(0xFF0C1D2B), Bg, Color(0xFF070B13))))
+                    .padding(horizontal = 18.dp)
+            ) {
+                Header()
+                when (selectedTab) {
+                    "HOME" -> HomeScreen(messages.size, onChat = { selectedTab = "CHAT" })
+                    "CHAT" -> ChatScreen(messages, draft, { draft = it }, { sendMessage() }, {
+                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
+                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to HAIRA")
+                        }
+                        try { speechLauncher.launch(intent) } catch (_: Exception) { }
+                    }, speak)
+                    "MEMORY" -> MemoryScreen(messages, search, { search = it })
+                    else -> SettingsScreen(messages.size, { messages = emptyList(); clearMessages() })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Header() {
+    Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("HAIRA", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
+            Text("PERSONAL INTELLIGENCE SYSTEM", color = Cyan, fontSize = 9.sp, letterSpacing = 2.sp)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text("LOCAL-FIRST", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text("BUILD 0.3.0", color = Muted, fontSize = 9.sp)
+        }
+    }
+}
+
+@Composable
+private fun HomeScreen(messageCount: Int, onChat: () -> Unit) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("HAIRA", color = cyan, fontSize = 27.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-                    Text("PERSONAL AI ASSISTANT", color = Color.LightGray, fontSize = 10.sp, letterSpacing = 2.sp)
+                    Text("Good to see you, Sir ji.", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Your personal command space.", color = Muted, fontSize = 12.sp)
                 }
-                TextButton(onClick = { messages = emptyList(); clearMessages() }) { Text("CLEAR", color = Color(0xFFFF8A8A), fontSize = 11.sp) }
-            }
-            Spacer(Modifier.height(12.dp))
-            Surface(color = Color(0xFF102333), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp)) {
-                    Text("CHAT FOUNDATION • v0.2.0", color = cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Text("Messages are saved on this phone. Replies are local starter responses; the AI engine is not connected yet.", color = Color(0xFFB8CBD8), fontSize = 11.sp)
+                Surface(color = Color(0xFF17372F), shape = RoundedCornerShape(20.dp)) {
+                    Text("● SYSTEM READY", color = Color(0xFF8BE0B0), fontSize = 9.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
                 }
             }
-            Spacer(Modifier.height(12.dp))
-            if (messages.isEmpty()) {
-                Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Box(Modifier.size(88.dp).background(Color(0x2235D9F2), CircleShape), contentAlignment = Alignment.Center) { Text("H", color = cyan, fontSize = 48.sp, fontWeight = FontWeight.Light) }
-                    Spacer(Modifier.height(18.dp))
-                    Text("Hello, Sir ji", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Your chat space is ready.", color = Color(0xFF9FB5C4), fontSize = 14.sp)
+        }
+        item { HoloCore() }
+        item {
+            Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("AI CORE", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                        Spacer(Modifier.weight(1f))
+                        Text("NOT INSTALLED", color = Color(0xFFFFC477), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("The interface is ready. A real local language model still needs to be integrated and tested on this phone.", color = Color(0xFFC0CFDA), fontSize = 12.sp, lineHeight = 18.sp)
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(onClick = onChat, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                        Text("OPEN HAIRA CHAT  →", color = Cyan, letterSpacing = 1.sp)
+                    }
                 }
-            } else {
-                LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(messages) { message ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = if (message.fromUser) Arrangement.End else Arrangement.Start) {
-                            Surface(color = if (message.fromUser) Color(0xFF16445A) else Color(0xFF142333), shape = RoundedCornerShape(18.dp), modifier = Modifier.widthIn(max = 310.dp)) {
-                                Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                                    Text(if (message.fromUser) "YOU" else "HAIRA", color = if (message.fromUser) Color(0xFF9ADCF0) else cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(message.text, color = Color.White, fontSize = 14.sp)
-                                    if (!message.fromUser) TextButton(onClick = { speak(message.text) }, contentPadding = PaddingValues(0.dp)) { Text("▶ SPEAK", color = cyan, fontSize = 10.sp) }
+            }
+        }
+        item {
+            Text("SYSTEM OVERVIEW", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatusCard("CHAT MEMORY", messageCount.toString(), "messages saved", Modifier.weight(1f))
+                StatusCard("VOICE OUTPUT", "READY", "device TTS", Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatusCard("VOICE INPUT", "BASIC", "Android recognizer", Modifier.weight(1f))
+                StatusCard("AI REASONING", "PENDING", "model integration", Modifier.weight(1f))
+            }
+        }
+        item {
+            Text("QUICK ACCESS", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            Surface(color = Panel2, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().clickable { onChat() }) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("◉", color = Cyan, fontSize = 22.sp)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Start a conversation", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text("Text chat and Android speech input", color = Muted, fontSize = 11.sp)
+                    }
+                    Text("›", color = Cyan, fontSize = 26.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HoloCore() {
+    Box(
+        Modifier.fillMaxWidth().height(245.dp)
+            .background(Brush.radialGradient(listOf(Color(0xFF163D50), Color(0xFF0A1928), Color.Transparent)), RoundedCornerShape(22.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(Modifier.size(218.dp)) {
+            val center = Offset(size.width / 2f, size.height / 2f)
+            drawCircle(Cyan.copy(alpha = 0.08f), radius = size.minDimension * 0.48f, center = center)
+            drawCircle(Cyan.copy(alpha = 0.22f), radius = size.minDimension * 0.43f, center = center, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5.dp.toPx()))
+            drawCircle(Gold.copy(alpha = 0.55f), radius = size.minDimension * 0.35f, center = center, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx()))
+            drawCircle(Cyan.copy(alpha = 0.45f), radius = size.minDimension * 0.25f, center = center, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()))
+            drawCircle(Color(0xFF102E40), radius = size.minDimension * 0.20f, center = center)
+            drawCircle(Cyan.copy(alpha = 0.18f), radius = size.minDimension * 0.13f, center = center)
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("H", color = Color.White, fontSize = 54.sp, fontWeight = FontWeight.Light)
+            Text("HAIRA CORE", color = Cyan, fontSize = 9.sp, letterSpacing = 3.sp, fontWeight = FontWeight.Bold)
+            Text("INTERFACE ONLINE", color = Muted, fontSize = 8.sp, letterSpacing = 1.sp)
+        }
+        Text("✦", color = Gold, fontSize = 18.sp, modifier = Modifier.offset(x = 83.dp, y = (-76).dp))
+        Text("✧", color = Cyan, fontSize = 16.sp, modifier = Modifier.offset(x = (-91).dp, y = 58.dp))
+    }
+}
+
+@Composable
+private fun StatusCard(title: String, value: String, detail: String, modifier: Modifier = Modifier) {
+    Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = modifier) {
+        Column(Modifier.padding(13.dp)) {
+            Text(title, color = Muted, fontSize = 8.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(7.dp))
+            Text(value, color = if (value == "PENDING") Color(0xFFFFC477) else Cyan, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(detail, color = Muted, fontSize = 9.sp)
+        }
+    }
+}
+
+@Composable
+private fun ChatScreen(
+    messages: List<ChatMessage>,
+    draft: String,
+    onDraft: (String) -> Unit,
+    onSend: () -> Unit,
+    onMic: () -> Unit,
+    speak: (String) -> Unit
+) {
+    Column(Modifier.fillMaxSize()) {
+        Text("CONVERSATION", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+        Text("Saved locally on this device", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(bottom = 8.dp))
+        if (messages.isEmpty()) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("◉", color = Cyan, fontSize = 42.sp)
+                    Text("Hello, Sir ji", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Start a new conversation.", color = Muted, fontSize = 12.sp)
+                    Text("AI model is not connected in this build.", color = Color(0xFFFFC477), fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+                }
+            }
+        } else {
+            LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(messages) { message ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (message.fromUser) Arrangement.End else Arrangement.Start) {
+                        Surface(
+                            color = if (message.fromUser) Color(0xFF17465A) else Panel,
+                            shape = RoundedCornerShape(17.dp),
+                            modifier = Modifier.widthIn(max = 310.dp)
+                        ) {
+                            Column(Modifier.padding(horizontal = 14.dp, vertical = 11.dp)) {
+                                Text(if (message.fromUser) "SIR JI" else "HAIRA", color = if (message.fromUser) Color(0xFFB7E9F2) else Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                Spacer(Modifier.height(5.dp))
+                                Text(message.text, color = Color.White, fontSize = 13.sp, lineHeight = 19.sp)
+                                if (!message.fromUser) TextButton(onClick = { speak(message.text) }, contentPadding = PaddingValues(0.dp)) {
+                                    Text("▶  PLAY VOICE", color = Cyan, fontSize = 9.sp)
                                 }
                             }
                         }
                     }
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = draft, onValueChange = { draft = it }, modifier = Modifier.weight(1f),
-                    placeholder = { Text("Message HAIRA...", color = Color(0xFF78909F)) },
-                    shape = RoundedCornerShape(24.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = cyan, unfocusedBorderColor = Color(0xFF355064), cursorColor = cyan),
-                    maxLines = 4
-                )
-                Spacer(Modifier.width(6.dp))
-                OutlinedButton(onClick = {
-                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
-                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to HAIRA")
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp)
+                .clip(RoundedCornerShape(18.dp)).background(Panel).padding(7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BasicTextField(
+                value = draft, onValueChange = onDraft, modifier = Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 12.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 14.sp),
+                cursorBrush = Brush.linearGradient(listOf(Cyan, Gold)),
+                decorationBox = { inner ->
+                    Box {
+                        if (draft.isEmpty()) Text("Message HAIRA...", color = Muted, fontSize = 13.sp)
+                        inner()
                     }
-                    try { speechLauncher.launch(intent) } catch (_: Exception) { }
-                }, shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(48.dp)) {
-                    Text("🎙", fontSize = 18.sp)
                 }
-                Spacer(Modifier.width(6.dp))
-                Button(onClick = { sendMessage() }, shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(52.dp)) { Text("➤", fontSize = 22.sp) }
+            )
+            IconButton(onClick = onMic) { Text("🎙", fontSize = 18.sp) }
+            Button(onClick = onSend, contentPadding = PaddingValues(horizontal = 15.dp, vertical = 8.dp), shape = RoundedCornerShape(13.dp)) {
+                Text("SEND", fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 
-private fun localReply(input: String): String {
-    val text = input.lowercase(Locale.ROOT)
-    return when {
-        Regex(".*\\b(hi|hello|hey)\\b.*").matches(text) -> "Hello, Sir ji. I am here. My chat foundation is active, while the full AI engine is still being integrated."
-        text.contains("your name") || text.contains("who are you") -> "I am HAIRA, your Android personal assistant project. My full AI capabilities are not connected in this build yet."
-        text.contains("what can you do") || text.contains("help") -> "This build can save conversations on your phone and read HAIRA replies aloud using your device's speech engine."
-        text.contains("time") -> "Your phone's current time is " + java.text.SimpleDateFormat("hh:mm a", Locale.getDefault()).format(java.util.Date()) + "."
-        else -> "I have saved your message on this phone. My full AI reasoning engine is not connected yet, so I cannot answer this properly in the current build."
+@Composable
+private fun MemoryScreen(messages: List<ChatMessage>, search: String, onSearch: (String) -> Unit) {
+    Column(Modifier.fillMaxSize()) {
+        Text("MEMORY VAULT", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+        Text("Local conversation history", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(bottom = 12.dp))
+        OutlinedTextField(
+            value = search, onValueChange = onSearch, modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search saved messages...", color = Muted) },
+            singleLine = true, shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Cyan, unfocusedBorderColor = Color(0xFF294052), cursorColor = Cyan)
+        )
+        val filtered = messages.filter { it.text.contains(search, ignoreCase = true) }.asReversed()
+        if (filtered.isEmpty()) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(if (messages.isEmpty()) "No saved conversations yet." else "No matching messages.", color = Muted, fontSize = 13.sp)
+            }
+        } else {
+            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(filtered) { item ->
+                    Surface(color = Panel, shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(13.dp)) {
+                            Text(if (item.fromUser) "YOU" else "HAIRA", color = if (item.fromUser) Gold else Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(4.dp))
+                            Text(item.text, color = Color.White, fontSize = 12.sp, lineHeight = 17.sp)
+                            Text(SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(item.time)), color = Muted, fontSize = 9.sp, modifier = Modifier.padding(top = 6.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsScreen(messageCount: Int, onClear: () -> Unit) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("SYSTEM SETTINGS", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+        Text("Privacy and build information", color = Muted, fontSize = 11.sp)
+        SettingRow("Conversation storage", "On-device SharedPreferences")
+        SettingRow("Voice output", "Android TextToSpeech")
+        SettingRow("Voice input", "Android speech recognizer; internet may be required")
+        SettingRow("AI model", "Not installed yet")
+        SettingRow("Saved messages", messageCount.toString())
+        Spacer(Modifier.height(8.dp))
+        Surface(color = Color(0xFF29191B), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(15.dp)) {
+                Text("CLEAR LOCAL CHAT", color = Color(0xFFFF9B9B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Text("This permanently removes saved conversation history from this app.", color = Color(0xFFD7B7B7), fontSize = 10.sp, modifier = Modifier.padding(top = 5.dp, bottom = 10.dp))
+                OutlinedButton(onClick = onClear, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
+                    Text("CLEAR ALL MESSAGES", color = Color(0xFFFF9B9B), fontSize = 10.sp)
+                }
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        Text("HAIRA AI • ANDROID BUILD 0.3.0", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
+    }
+}
+
+@Composable
+private fun SettingRow(title: String, value: String) {
+    Surface(color = Panel, shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp)) {
+            Text(title, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(value, color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+        }
     }
 }
