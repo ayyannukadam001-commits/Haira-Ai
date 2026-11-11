@@ -97,7 +97,7 @@ class MainActivity : ComponentActivity() {
                 .setTitle("HAIRA local AI model")
                 .setDescription("Downloading Qwen3 0.6B model (about 586 MB)")
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                .setAllowedOverMetered(true)
+                .setAllowedOverMetered(false)
                 .setAllowedOverRoaming(false)
                 .setDestinationInExternalFilesDir(this, null, HAIRA_MODEL_FILE)
             (getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
