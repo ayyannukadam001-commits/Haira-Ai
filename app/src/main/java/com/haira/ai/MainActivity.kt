@@ -274,7 +274,7 @@ private fun HairaApp(
             ) {
                 Header()
                 when (selectedTab) {
-                    "HOME" -> HomeScreen(messages.size, onChat = { selectedTab = "CHAT" })
+                    "HOME" -> HomeScreen(messages.size, aiLoaded, modelReady, onChat = { selectedTab = "CHAT" })
                     "CHAT" -> ChatScreen(messages, draft, { draft = it }, { sendMessage() }, {
                         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -324,7 +324,7 @@ private fun Header() {
 }
 
 @Composable
-private fun HomeScreen(messageCount: Int, onChat: () -> Unit) {
+private fun HomeScreen(messageCount: Int, aiLoaded: Boolean, modelReady: Boolean, onChat: () -> Unit) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 18.dp),
@@ -348,10 +348,10 @@ private fun HomeScreen(messageCount: Int, onChat: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("AI CORE", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                         Spacer(Modifier.weight(1f))
-                        Text("NOT INSTALLED", color = Color(0xFFFFC477), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(if (aiLoaded) "ONLINE" else if (modelReady) "DOWNLOADED" else "SETUP REQUIRED", color = if (aiLoaded) Color(0xFF8BE0B0) else Color(0xFFFFC477), fontSize = 9.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("The interface is ready. A real local language model still needs to be integrated and tested on this phone.", color = Color(0xFFC0CFDA), fontSize = 12.sp, lineHeight = 18.sp)
+                    Text(when { aiLoaded -> "The local language model is loaded and generating replies on-device."; modelReady -> "The model file is ready. Load it from Settings to start offline AI."; else -> "Download the optional local model from Settings. No API key is required." }, color = Color(0xFFC0CFDA), fontSize = 12.sp, lineHeight = 18.sp)
                     Spacer(Modifier.height(12.dp))
                     OutlinedButton(onClick = onChat, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                         Text("OPEN HAIRA CHAT  →", color = Cyan, letterSpacing = 1.sp)
@@ -368,7 +368,7 @@ private fun HomeScreen(messageCount: Int, onChat: () -> Unit) {
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 StatusCard("VOICE INPUT", "BASIC", "Android recognizer", Modifier.weight(1f))
-                StatusCard("AI REASONING", "PENDING", "model integration", Modifier.weight(1f))
+                StatusCard("AI REASONING", if (aiLoaded) "READY" else if (modelReady) "LOAD" else "SETUP", "local model", Modifier.weight(1f))
             }
         }
         item {
