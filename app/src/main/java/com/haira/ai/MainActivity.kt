@@ -19,6 +19,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -525,14 +527,41 @@ private fun MemoryScreen(messages: List<ChatMessage>, search: String, onSearch: 
 }
 
 @Composable
-private fun SettingsScreen(messageCount: Int, onClear: () -> Unit) {
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+private fun SettingsScreen(
+    messageCount: Int,
+    modelReady: Boolean,
+    aiLoaded: Boolean,
+    modelStatus: String,
+    onRefresh: () -> Unit,
+    onDownload: () -> Unit,
+    onLoad: () -> Unit,
+    onClear: () -> Unit
+) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("SYSTEM SETTINGS", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
         Text("Privacy and build information", color = Muted, fontSize = 11.sp)
-        SettingRow("Conversation storage", "On-device SharedPreferences")
+        Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(15.dp)) {
+                Text("ON-DEVICE AI MODEL", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text("Qwen3 0.6B • about 586 MB • local inference • no API key", color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                Text(modelStatus, color = if (aiLoaded) Color(0xFF8BE0B0) else Color(0xFFFFC477), fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+                Text("The model is a separate download, not part of the APK. Download only on Wi-Fi if you want to save mobile data. A compact model may be less capable than cloud AI.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 7.dp, bottom = 12.dp))
+                Button(onClick = onDownload, enabled = !modelReady, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
+                    Text(if (modelReady) "MODEL FILE FOUND" else "DOWNLOAD LOCAL MODEL")
+                }
+                OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
+                    Text("CHECK DOWNLOAD")
+                }
+                OutlinedButton(onClick = onLoad, enabled = modelReady && !aiLoaded, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
+                    Text(if (aiLoaded) "AI MODEL LOADED" else "LOAD MODEL INTO MEMORY")
+                }
+            }
+        }
+        SettingRow("Conversation storage", "Last 300 messages on this device")
         SettingRow("Voice output", "Android TextToSpeech")
         SettingRow("Voice input", "Android speech recognizer; internet may be required")
-        SettingRow("AI model", "Not installed yet")
+        SettingRow("Phone commands", "Open YouTube, Android Settings and Camera; reminders open Calendar form")
+        SettingRow("Image understanding", "Not included in this text-only model")
         SettingRow("Saved messages", messageCount.toString())
         Spacer(Modifier.height(8.dp))
         Surface(color = Color(0xFF29191B), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
@@ -544,8 +573,7 @@ private fun SettingsScreen(messageCount: Int, onClear: () -> Unit) {
                 }
             }
         }
-        Spacer(Modifier.weight(1f))
-        Text("HAIRA AI • ANDROID BUILD 0.3.0", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
+        Text("HAIRA AI • ANDROID BUILD 0.4.0", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
     }
 }
 
