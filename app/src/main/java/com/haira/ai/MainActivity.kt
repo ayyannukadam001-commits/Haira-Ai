@@ -1,8 +1,14 @@
 package com.haira.ai
 
 import android.app.Activity
+import android.app.DownloadManager
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.CalendarContract
+import android.provider.MediaStore
+import android.provider.Settings
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
 import androidx.activity.ComponentActivity
@@ -31,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -43,13 +50,19 @@ private val Panel2 = Color(0xFF122437)
 private val Cyan = Color(0xFF55E6F2)
 private val Muted = Color(0xFF8CA4B8)
 private val Gold = Color(0xFFD7B56D)
+private const val HAIRA_MODEL_FILE = "Qwen3-0.6B.litertlm"
+private const val HAIRA_MODEL_URL = "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/Qwen3-0.6B.litertlm"
+private const val HAIRA_MODEL_MIN_BYTES = 500_000_000L
 
 class MainActivity : ComponentActivity() {
     private var tts: TextToSpeech? = null
     private var ttsReady = false
+    private lateinit var localAi: LocalAiEngine
+    private val modelFile: File get() = File(getExternalFilesDir(null), HAIRA_MODEL_FILE)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        localAi = LocalAiEngine(this)
         tts = TextToSpeech(this) { status ->
             ttsReady = status == TextToSpeech.SUCCESS
             if (ttsReady) {
@@ -59,7 +72,73 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        setContent { HairaApp(::loadMessages, ::saveMessages, ::speakReply, ::clearMessages) }
+        setContent {
+            HairaApp(
+                loadMessages = ::loadMessages,
+                saveMessages = ::saveMessages,
+                speak = ::speakReply,
+                clearMessages = ::clearMessages,
+                modelExists = ::modelExists,
+                downloadModel = ::downloadModel,
+                loadModel = ::loadModel,
+                sendPrompt = { prompt, chunk, done, error -> localAi.send(prompt, chunk, done, error) },
+                handleCommand = ::handleCommand
+            )
+        }
+    }
+
+    private fun modelExists(): Boolean = modelFile.exists() && modelFile.length() >= HAIRA_MODEL_MIN_BYTES
+
+    private fun downloadModel() {
+        try {
+            val request = DownloadManager.Request(Uri.parse(HAIRA_MODEL_URL))
+                .setTitle("HAIRA local AI model")
+                .setDescription("Downloading Qwen3 0.6B model (about 586 MB)")
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setAllowedOverMetered(true)
+                .setAllowedOverRoaming(false)
+                .setDestinationInExternalFilesDir(this, null, HAIRA_MODEL_FILE)
+            (getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
+        } catch (_: Exception) { }
+    }
+
+    private fun loadModel(onReady: () -> Unit, onError: (String) -> Unit) {
+        if (!modelExists()) {
+            onError("Model file is missing or incomplete. Download it first.")
+            return
+        }
+        localAi.load(modelFile.absolutePath, onReady, onError)
+    }
+
+    private fun handleCommand(raw: String): String? {
+        val command = raw.lowercase(Locale.ROOT).trim()
+        return try {
+            when {
+                command == "open youtube" || command == "youtube kholo" || command == "youtube open karo" -> {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")))
+                    "Opening YouTube."
+                }
+                command == "open settings" || command == "settings kholo" || command == "phone settings kholo" -> {
+                    startActivity(Intent(Settings.ACTION_SETTINGS))
+                    "Opening Android Settings."
+                }
+                command == "open camera" || command == "camera kholo" || command == "camera open karo" -> {
+                    startActivity(Intent(MediaStore.ACTION_IMAGE_CAPTURE))
+                    "Opening the camera. The selected text model cannot understand images yet."
+                }
+                command.startsWith("remind me to ") || command.startsWith("remind me ") || command.startsWith("mujhe yaad dilana ") -> {
+                    val title = raw.substringAfter("to ", raw.substringAfter("me ", raw)).trim().ifBlank { "HAIRA reminder" }
+                    val intent = Intent(Intent.ACTION_INSERT).setData(CalendarContract.Events.CONTENT_URI)
+                        .putExtra(CalendarContract.Events.TITLE, title)
+                        .putExtra(CalendarContract.Events.DESCRIPTION, "Created from HAIRA AI")
+                    startActivity(intent)
+                    "I opened your Calendar event form. Choose the date and time, then save it."
+                }
+                else -> null
+            }
+        } catch (_: Exception) {
+            "I couldn't open that action. Check that a compatible app is installed."
+        }
     }
 
     private fun loadMessages(): List<ChatMessage> {
@@ -93,6 +172,7 @@ class MainActivity : ComponentActivity() {
         tts?.stop()
         tts?.shutdown()
         tts = null
+        if (::localAi.isInitialized) localAi.close()
         super.onDestroy()
     }
 }
@@ -102,12 +182,21 @@ private fun HairaApp(
     loadMessages: () -> List<ChatMessage>,
     saveMessages: (List<ChatMessage>) -> Unit,
     speak: (String) -> Unit,
-    clearMessages: () -> Unit
+    clearMessages: () -> Unit,
+    modelExists: () -> Boolean,
+    downloadModel: () -> Unit,
+    loadModel: ((() -> Unit), ((String) -> Unit)) -> Unit,
+    sendPrompt: (String, (String) -> Unit, () -> Unit, (String) -> Unit) -> Unit,
+    handleCommand: (String) -> String?
 ) {
     var messages by remember { mutableStateOf(loadMessages()) }
     var selectedTab by remember { mutableStateOf("HOME") }
     var draft by remember { mutableStateOf("") }
     var search by remember { mutableStateOf("") }
+    var modelReady by remember { mutableStateOf(modelExists()) }
+    var aiLoaded by remember { mutableStateOf(false) }
+    var modelStatus by remember { mutableStateOf(if (modelReady) "Model file found on this device" else "Model not downloaded") }
+    var busy by remember { mutableStateOf(false) }
 
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -119,14 +208,44 @@ private fun HairaApp(
     fun sendMessage() {
         val text = draft.trim()
         if (text.isEmpty()) return
-        val userMessage = ChatMessage(text, true)
-        val answer = ChatMessage(
-            "I have saved your message on this device. My on-device AI model is not installed in this build yet, so I will not pretend this is an intelligent answer. The AI engine is still a development task.",
-            false
-        )
-        messages = (messages + userMessage + answer).takeLast(300)
+        messages = (messages + ChatMessage(text, true)).takeLast(300)
         saveMessages(messages)
         draft = ""
+
+        val commandReply = handleCommand(text)
+        if (commandReply != null) {
+            messages = (messages + ChatMessage(commandReply, false)).takeLast(300)
+            saveMessages(messages)
+            return
+        }
+        if (!aiLoaded) {
+            val reply = if (modelExists()) "The local model is downloaded but not loaded. Open Settings and tap Load Model."
+                else "Local AI is not set up yet. Open Settings → AI Model and download the optional model. No API key is required."
+            messages = (messages + ChatMessage(reply, false)).takeLast(300)
+            saveMessages(messages)
+            return
+        }
+        messages = (messages + ChatMessage("", false)).takeLast(300)
+        busy = true
+        sendPrompt(
+            text,
+            { chunk ->
+                val last = messages.lastOrNull()
+                if (last != null && !last.fromUser) {
+                    messages = messages.dropLast(1) + last.copy(text = last.text + chunk)
+                    saveMessages(messages)
+                }
+            },
+            { busy = false },
+            { error ->
+                busy = false
+                val last = messages.lastOrNull()
+                if (last != null && !last.fromUser) {
+                    messages = messages.dropLast(1) + last.copy(text = "AI error: $error")
+                    saveMessages(messages)
+                }
+            }
+        )
     }
 
     MaterialTheme(colorScheme = darkColorScheme(primary = Cyan, background = Bg, surface = Panel)) {
@@ -163,7 +282,25 @@ private fun HairaApp(
                         try { speechLauncher.launch(intent) } catch (_: Exception) { }
                     }, speak)
                     "MEMORY" -> MemoryScreen(messages, search, { search = it })
-                    else -> SettingsScreen(messages.size, { messages = emptyList(); clearMessages() })
+                    else -> SettingsScreen(
+                        messages.size, modelReady, aiLoaded, modelStatus,
+                        onRefresh = {
+                            modelReady = modelExists()
+                            modelStatus = if (modelReady) "Model file found on this device" else "Model not downloaded or download incomplete"
+                        },
+                        onDownload = {
+                            downloadModel()
+                            modelStatus = "Download started. Android will notify when it finishes."
+                        },
+                        onLoad = {
+                            modelStatus = "Loading local model..."
+                            loadModel(
+                                { aiLoaded = true; modelStatus = "Local AI model loaded and ready" },
+                                { error -> aiLoaded = false; modelStatus = "Load failed: $error" }
+                            )
+                        },
+                        onClear = { messages = emptyList(); clearMessages() }
+                    )
                 }
             }
         }
