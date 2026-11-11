@@ -1,9 +1,13 @@
 package com.haira.ai
 
 import android.os.Bundle
+import android.content.Intent
+import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -79,6 +83,12 @@ private fun HairaApp(
     val cyan = Color(0xFF35D9F2)
     var messages by remember { mutableStateOf(loadMessages()) }
     var draft by remember { mutableStateOf("") }
+    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            if (!spoken.isNullOrBlank()) draft = listOf(draft.trim(), spoken).filter { it.isNotBlank() }.joinToString(" ")
+        }
+    }
 
     fun sendMessage() {
         val text = draft.trim()
@@ -137,7 +147,18 @@ private fun HairaApp(
                     colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = cyan, unfocusedBorderColor = Color(0xFF355064), cursorColor = cyan),
                     maxLines = 4
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(6.dp))
+                OutlinedButton(onClick = {
+                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
+                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to HAIRA")
+                    }
+                    try { speechLauncher.launch(intent) } catch (_: Exception) { }
+                }, shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(48.dp)) {
+                    Text("🎙", fontSize = 18.sp)
+                }
+                Spacer(Modifier.width(6.dp))
                 Button(onClick = { sendMessage() }, shape = CircleShape, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(52.dp)) { Text("➤", fontSize = 22.sp) }
             }
         }
