@@ -32,6 +32,6 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HAIRA-debug-APK-v0.2.0
+          name: HAIRA-debug-APK-v0.3.0
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
