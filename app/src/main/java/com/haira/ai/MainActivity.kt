@@ -318,7 +318,7 @@ private fun Header() {
         }
         Column(horizontalAlignment = Alignment.End) {
             Text("LOCAL-FIRST", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-            Text("BUILD 0.3.0", color = Muted, fontSize = 9.sp)
+            Text("BUILD 0.4.0", color = Muted, fontSize = 9.sp)
         }
     }
 }
