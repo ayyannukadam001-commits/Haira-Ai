@@ -20,7 +20,7 @@ Part 5 provides HAIRA's curated Qwen3 0.6B LiteRT-LM starter model through a ver
 - SHA-256: `c5f39b4191926786c3e6668b62af4d6eb15248dfc7a5348252a9b406f33f2108`
 
 ### Important limitations
-- The APK does not bundle model weights; the starter model is downloaded on first launch.
+- The APK does not bundle model weights; the starter model is downloaded on first launch over unmetered Wi-Fi.
 - Chat and text generation use the bundled model. Image generation, video generation, advanced speech recognition, and 3D generation are not created merely by bundling this language model; those require separate compatible runtimes and models.
 - First launch needs an internet connection over unmetered Wi-Fi and additional free storage (keep at least about 1.2 GB free).
 - The model runs locally; performance depends on available RAM, thermal state, Android version, and other running apps. First-launch model loading has not been verified on the user's physical phone.
@@ -51,8 +51,9 @@ Only reviewed app-bundled plugin code is executable. This version does not insta
 - Removed inactive placeholder Studios panel and Gmail/Drive website-shortcut callback. GitHub Manager remains available inside Work Mode.
 - Added a model intelligence catalog for Gemma 3 1B INT4 QAT, NanoLM-0.3B-Instruct-v1.1 and the existing Qwen3 recovery model.
 - Gemma and NanoLM are shown as candidates only. Gemma's exact artifact/checksum and NanoLM's GGUF runtime compatibility must be verified before enabling downloads.
-- Added honest provider-authentication metadata. Hugging Face Inference Providers require a Hugging Face user token; free credits do not mean anonymous/no-key inference.
-- No external inference is called, no paid service is used, and no user data is transmitted by this catalog foundation.
+- No hosted inference-provider integration is included. No Hugging Face Inference API/provider is connected, and no external inference call is made.
+- The existing Qwen3 model-file download URL is still hosted on Hugging Face; this is file hosting for the current local model, not an inference API integration. Removing that host would require a separately verified model mirror before downloads can keep working.
+- No paid service is used, and no chat data is sent to an external AI provider by the local inference path.
 - Current local Qwen3 remains the recovery baseline. It is downloaded on first launch rather than bundled in the APK, and it is not removed until replacement models pass device verification.
 
 ### Not yet completed
