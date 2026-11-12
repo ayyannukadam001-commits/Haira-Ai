@@ -592,8 +592,8 @@ private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: St
         Text("MODEL CANDIDATES", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
         ModelCandidateCard(
             "Gemma 3 1B INT4 QAT",
-            "Approx. 529 MB • LiteRT candidate",
-            "PRIMARY CANDIDATE — access is gated by the model licence. Exact downloadable LiteRT-LM artifact and checksum still need verification.",
+            "Approx. 529 MB QAT .task; approx. 584 MB .litertlm variant",
+            "PRIMARY CANDIDATE — 529 MB QAT file is a MediaPipe .task artifact; the current LiteRT-LM engine needs the larger .litertlm variant. Model access is gated by the Gemma licence.",
             Gold
         )
         ModelCandidateCard(
