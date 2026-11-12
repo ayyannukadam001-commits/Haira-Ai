@@ -24,7 +24,7 @@ private val WorkMuted = Color(0xFF8CA4B8)
 private val WorkGold = Color(0xFFD7B56D)
 
 @Composable
-fun WorkstationScreen(context: Context, modelLoaded: Boolean, modelStatus: String, onOpenModel: () -> Unit, onReturnNormal: () -> Unit) {
+fun WorkstationScreen(context: Context, modelLoaded: Boolean, modelStatus: String, modelBusy: Boolean, downloadProgress: Float, onDownloadStarterModel: () -> Unit, onOpenModel: () -> Unit, onReturnNormal: () -> Unit) {
     val workspace = remember { File(context.filesDir, "haira_workspace").apply { mkdirs() } }
     var section by remember { mutableStateOf("OVERVIEW") }
     var files by remember { mutableStateOf(emptyList<File>()) }
@@ -50,7 +50,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, modelStatus: Strin
             Text("HAIRA", color = WorkCyan, fontSize = 21.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
             Text("SERIOUS MODE", color = WorkGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             HorizontalDivider(color = WorkCyan.copy(alpha = 0.25f))
-            listOf("OVERVIEW", "FILES", "CODE", "RESEARCH", "TASK QUEUE", "STUDIOS").forEach { item ->
+            listOf("OVERVIEW", "SELF SETUP", "FILES", "CODE", "RESEARCH", "TASK QUEUE", "STUDIOS").forEach { item ->
                 TextButton(onClick = { section = item }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(5.dp)) {
                     Text((if (section == item) "▸ " else "") + item, color = if (section == item) WorkCyan else WorkMuted, fontSize = 9.sp)
                 }
@@ -82,6 +82,26 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, modelStatus: Strin
                     }
                     Panel("LOCAL AI ENGINE", modelStatus) { OutlinedButton(onClick = onOpenModel) { Text("MODEL MANAGER", fontSize = 9.sp) } }
                     Panel("TASK TRACKER", "Tracks queued and completed work. It does not claim background execution or fabricated progress.") { OutlinedButton(onClick = { section = "TASK QUEUE" }) { Text("OPEN QUEUE", fontSize = 9.sp) } }
+                }
+                "SELF SETUP" -> {
+                    Panel("AUTOMATIC MODEL SETUP", "HAIRA can download a curated LiteRT-LM model, verify its SHA-256 checksum, store it privately and load it into the local AI engine.") {
+                        Text("STARTER MODEL", color = WorkCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(HairaModelCatalog.starter.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(HairaModelCatalog.starter.description, color = WorkMuted, fontSize = 9.sp)
+                        Text("Source: ${HairaModelCatalog.starter.sourceLabel} • License: ${HairaModelCatalog.starter.license}", color = WorkMuted, fontSize = 8.sp)
+                        Text("Download uses unmetered Wi-Fi only and requires about 1.2 GB free storage. The model is downloaded only after you press the button.", color = WorkGold, fontSize = 8.sp)
+                        if (modelBusy) {
+                            LinearProgressIndicator(progress = downloadProgress, modifier = Modifier.fillMaxWidth())
+                            Text("Setup in progress…", color = WorkCyan, fontSize = 9.sp)
+                        }
+                        Button(onClick = onDownloadStarterModel, enabled = !modelBusy && !modelLoaded, modifier = Modifier.fillMaxWidth()) {
+                            Text(if (modelLoaded) "LOCAL MODEL READY" else if (modelBusy) "SETTING UP…" else "DOWNLOAD & SET UP MODEL", fontSize = 9.sp)
+                        }
+                    }
+                    Panel("INTEGRATION SAFETY", "Only catalogued model files with a pinned SHA-256 checksum are accepted. HAIRA does not silently install arbitrary executable apps or code. Tool adapters are integrated as reviewed app modules.")
+                    Panel("MODEL STATUS", modelStatus) {
+                        OutlinedButton(onClick = onOpenModel, enabled = !modelBusy) { Text("OPEN MODEL MANAGER", fontSize = 9.sp) }
+                    }
                 }
                 "FILES" -> {
                     Row(verticalAlignment = Alignment.CenterVertically) {
