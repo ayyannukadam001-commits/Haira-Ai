@@ -270,7 +270,7 @@ private fun HairaApp(
             val selected = saved ?: run {
                 modelStatus = "First-run setup: downloading Gemma 3 1B over unmetered Wi-Fi…"
                 HairaModelDownloadManager.download(context, HairaModelCatalog.gemma3) { progress ->
-                    withContext(Dispatchers.Main) {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
                         downloadProgress = progress.fraction
                         val percent = (progress.fraction * 100f).toInt()
                         modelStatus = if (progress.total > 0L) "Downloading Gemma 3 1B: $percent%" else "Downloading Gemma 3 1B…"
