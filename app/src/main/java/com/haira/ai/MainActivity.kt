@@ -199,6 +199,36 @@ private fun HairaApp(
                         addMessage(reply, false)
                         if (autoSpeak) speak(reply)
                     }
+                    voiceCommand in setOf("open chat", "chat kholo", "chat open karo") -> {
+                        addMessage(spoken, true); seriousMode = false; tab = "CHAT"
+                        addMessage("Chat open kar diya.", false)
+                    }
+                    voiceCommand in setOf("open home", "home kholo", "home open karo") -> {
+                        addMessage(spoken, true); seriousMode = false; tab = "HOME"
+                        addMessage("Home dashboard open kar diya.", false)
+                    }
+                    voiceCommand in setOf("open memory", "memory kholo", "memory open karo") -> {
+                        addMessage(spoken, true); seriousMode = false; tab = "MEMORY"
+                        addMessage("Memory Vault open kar diya.", false)
+                    }
+                    voiceCommand in setOf("open models", "models kholo", "model manager kholo") -> {
+                        addMessage(spoken, true); seriousMode = false; tab = "MODELS"
+                        addMessage("Local Model Manager open kar diya.", false)
+                    }
+                    voiceCommand in setOf("open settings", "settings kholo", "settings open karo") -> {
+                        addMessage(spoken, true); seriousMode = false; tab = "SETTINGS"
+                        addMessage("Settings open kar di.", false)
+                    }
+                    voiceCommand in setOf("voice on", "enable voice", "voice chalu karo") -> {
+                        addMessage(spoken, true); autoSpeak = true
+                        context.getSharedPreferences("haira_voice", Context.MODE_PRIVATE).edit().putBoolean("auto_speak", true).apply()
+                        addMessage("Automatic voice replies ON.", false)
+                    }
+                    voiceCommand in setOf("voice off", "disable voice", "voice band karo") -> {
+                        addMessage(spoken, true); autoSpeak = false
+                        context.getSharedPreferences("haira_voice", Context.MODE_PRIVATE).edit().putBoolean("auto_speak", false).apply()
+                        addMessage("Automatic voice replies OFF.", false)
+                    }
                     else -> draft = listOf(draft.trim(), spoken).filter { it.isNotBlank() }.joinToString(" ")
                 }
             }
@@ -404,7 +434,7 @@ private fun HairaApp(
                         onExecuteTask = executeLocalTask
                     )
                 } else when (tab) {
-                    "HOME" -> HomeScreen(messages.size, memories.size, modelLoaded, modelStatus, onChat = { tab = "CHAT" }, onWorkMode = { seriousMode = true })
+                    "HOME" -> HomeScreen(messages.size, memories.size, modelLoaded, modelStatus, onChat = { tab = "CHAT" }, onWorkMode = { seriousMode = true }, onMemory = { tab = "MEMORY" }, onModels = { tab = "MODELS" }, onSettings = { tab = "SETTINGS" })
                     "CHAT" -> ChatScreen(messages, draft, { draft = it }, { sendMessage() }, {
                         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -499,7 +529,10 @@ private fun HomeScreen(
     modelLoaded: Boolean,
     modelStatus: String,
     onChat: () -> Unit,
-    onWorkMode: () -> Unit
+    onWorkMode: () -> Unit,
+    onMemory: () -> Unit,
+    onModels: () -> Unit,
+    onSettings: () -> Unit
 ) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 4.dp, bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -546,11 +579,25 @@ private fun HomeScreen(
             }
         }
         item {
-            Surface(color = Color(0xFF0A1724), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text("QUICK ACCESS", color = Muted, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                listOf("MEMORY" to onMemory, "MODELS" to onModels, "SETTINGS" to onSettings).forEach { (label, action) ->
+                    OutlinedButton(onClick = action, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)) {
+                        Text(label, color = Cyan, fontSize = 8.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    }
+                }
+            }
+        }
+        item {
+            Surface(color = Color(0xFF0A1724), shape = RoundedCornerShape(14.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Cyan.copy(alpha = 0.16f)), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("COMMAND DECK", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                    Text("Say or type: Activate Work Mode", color = Color.White, fontSize = 11.sp)
-                    Text("Open Memory • Voice On • Save Memory: ... • Help", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                    Text("Switch modes", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                    Text("\"Activate Work Mode\" • \"Normal Mode\" • \"Open Chat\"", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                    Text("Control HAIRA", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                    Text("\"Open Memory\" • \"Open Models\" • \"Open Settings\" • \"Voice On\"", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                    Text("Save and find", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                    Text("\"Save Memory: …\" • \"Search Memory: …\" • \"Help\"", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
                 }
             }
         }
