@@ -1,7 +1,6 @@
 package com.haira.ai
 
 import android.app.Activity
-import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -42,7 +41,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -59,14 +57,11 @@ private val Gold = Color(0xFFD7B56D)
 class MainActivity : ComponentActivity() {
     private var tts: TextToSpeech? = null
     private var ttsReady = false
-    private lateinit var localAi: LocalAiEngine
     private lateinit var gatewayClient: GatewayAiClient
     private lateinit var secureKeyStore: SecureKeyStore
-    private val modelFile: File get() = File(getExternalFilesDir(null), "Qwen3-0.6B.litertlm")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        localAi = LocalAiEngine(this)
         gatewayClient = GatewayAiClient()
         secureKeyStore = SecureKeyStore(this)
         tts = TextToSpeech(this) { status ->
@@ -173,7 +168,6 @@ class MainActivity : ComponentActivity() {
         tts?.stop()
         tts?.shutdown()
         tts = null
-        if (::localAi.isInitialized) localAi.close()
         if (::gatewayClient.isInitialized) gatewayClient.close()
         super.onDestroy()
     }
@@ -224,7 +218,7 @@ private fun HairaApp(
         busy = true
         val history = messages.dropLast(1).takeLast(24).map {
             (if (it.fromUser) "user" else "assistant") to it.text
-        } + ("user" to text)
+        }
         gatewayClient.send(gatewayConfig, history) { result ->
             busy = false
             val reply = result.getOrElse { error -> "AI connection error: ${error.message ?: "Unknown error"}" }
