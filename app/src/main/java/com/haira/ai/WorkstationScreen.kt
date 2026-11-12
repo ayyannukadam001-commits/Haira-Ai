@@ -24,7 +24,7 @@ private val WorkMuted = Color(0xFF8CA4B8)
 private val WorkGold = Color(0xFFD7B56D)
 
 @Composable
-fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: List<HairaToolDescriptor>, modelStatus: String, modelBusy: Boolean, downloadProgress: Float, onDownloadStarterModel: () -> Unit, onOpenModel: () -> Unit, onReturnNormal: () -> Unit) {
+fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: List<HairaToolDescriptor>, modelStatus: String, modelBusy: Boolean, downloadProgress: Float, onDownloadStarterModel: () -> Unit, onOpenModel: () -> Unit, onReturnNormal: () -> Unit, onExecuteTask: (String) -> String?) {
     val workspace = remember { File(context.filesDir, "haira_workspace").apply { mkdirs() } }
     var section by remember { mutableStateOf("OVERVIEW") }
     var files by remember { mutableStateOf(emptyList<File>()) }
@@ -63,7 +63,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(section, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                    Text("HAIRA AI • LOCAL-FIRST WORKSTATION • v0.8.0", color = WorkMuted, fontSize = 8.sp)
+                    Text("HAIRA AI • LOCAL-FIRST WORKSTATION • v0.9.0", color = WorkMuted, fontSize = 8.sp)
                 }
                 Text(if (modelLoaded) "MODEL READY" else "MODEL NOT LOADED", color = if (modelLoaded) Color(0xFF8BE0B0) else WorkGold, fontSize = 8.sp)
             }
@@ -165,15 +165,16 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
                     Text("This notebook does not claim to browse the internet; research sources must be gathered separately.", color = WorkMuted, fontSize = 8.sp)
                 }
                 "TASK QUEUE" -> {
-                    OutlinedTextField(value = newTask, onValueChange = { newTask = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Add task to track") }, singleLine = true)
+                    Text("Add a supported local command. Examples: create note: project ideas • create project: My App • list workspace files • search workspace: meeting", color = WorkMuted, fontSize = 9.sp)
+                    OutlinedTextField(value = newTask, onValueChange = { newTask = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Task command") }, singleLine = true)
                     Button(onClick = {
                         val title = newTask.trim()
                         if (title.isNotEmpty()) {
                             val dir = File(workspace, "tasks").apply { mkdirs() }
-                            File(dir, "task-" + System.currentTimeMillis() + ".task").writeText(title + "\nQUEUED")
-                            newTask = ""; refresh(); status = "Task added."
+                            File(dir, "task-" + System.currentTimeMillis() + ".task").writeText(title + "\\nQUEUED")
+                            newTask = ""; refresh(); status = "Task queued. Press RUN when ready."
                         }
-                    }, enabled = newTask.isNotBlank()) { Text("ADD TASK", fontSize = 9.sp) }
+                    }, enabled = newTask.isNotBlank()) { Text("ADD TO QUEUE", fontSize = 9.sp) }
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         items(tasks, key = { it.first }) { task ->
                             Surface(color = WorkPanel, shape = RoundedCornerShape(8.dp)) {
@@ -182,18 +183,29 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
                                         Text(task.first, color = Color.White, fontSize = 10.sp)
                                         Text(if (task.second) "COMPLETED" else "QUEUED", color = if (task.second) Color(0xFF8BE0B0) else WorkGold, fontSize = 8.sp)
                                     }
-                                    TextButton(onClick = {
+                                    if (!task.second) TextButton(onClick = {
                                         val dir = File(workspace, "tasks")
                                         val f = dir.listFiles()?.firstOrNull { runCatching { it.readLines().firstOrNull() == task.first }.getOrDefault(false) }
-                                        if (f != null) f.writeText(task.first + "\n" + if (task.second) "QUEUED" else "DONE")
-                                        refresh()
-                                    }) { Text(if (task.second) "REOPEN" else "MARK DONE", color = WorkCyan, fontSize = 8.sp) }
+                                        if (f != null) {
+                                            f.writeText(task.first + "\\nRUNNING")
+                                            val result = onExecuteTask(task.first)
+                                            if (result == null) {
+                                                f.writeText(task.first + "\\nFAILED")
+                                                status = "Unsupported command. Use one of the listed local tool commands."
+                                            } else {
+                                                f.writeText(task.first + "\\nDONE")
+                                                status = result
+                                            }
+                                            refresh()
+                                        }
+                                    }) { Text("RUN", color = WorkCyan, fontSize = 8.sp) }
                                 }
                             }
                         }
                         if (tasks.isEmpty()) item { Text("Queue is empty.", color = WorkMuted, fontSize = 10.sp) }
                     }
-                    Text("Tasks persist locally. Automatic background execution and progress tracking are not implemented yet.", color = WorkMuted, fontSize = 8.sp)
+                    Text(status, color = WorkMuted, fontSize = 8.sp)
+                    Text("Execution is user-started and foreground-only. Only reviewed local workspace tools run; no shell commands, downloaded code, or silent background execution.", color = WorkGold, fontSize = 8.sp)
                 }
                 "STUDIOS" -> {
                     Panel("CODING STUDIO", "Available now: create, open and save text/source files.") { OutlinedButton(onClick = { section = "CODE" }) { Text("OPEN EDITOR", fontSize = 9.sp) } }
