@@ -24,23 +24,23 @@ object HairaIntelligenceCatalog {
             id = "gemma3-1b-int4-qat",
             name = "Gemma 3 1B INT4 QAT",
             provider = "Google",
-            approximateSize = "~529 MB",
-            format = "LiteRT-LM candidate",
+            approximateSize = "~584 MB download (529 MB benchmark model size)",
+            format = "LiteRT-LM (.litertlm)",
             intendedRole = "Primary general assistant",
             runtime = "LiteRT-LM",
-            status = "CANDIDATE — verification required",
-            limitation = "Exact QAT artifact, pinned checksum, license and Redmi 13 5G performance must be verified before enabling download."
+            status = "CANDIDATE — Gemma terms acceptance required",
+            limitation = "The public repository is gated: a Hugging Face account must accept the Gemma terms. The 584 MB .litertlm artifact has no pinned checksum in this app yet; Redmi 13 5G testing is required."
         ),
         HairaModelCandidate(
             id = "nanolm-03b-instruct",
             name = "NanoLM-0.3B-Instruct-v1.1",
             provider = "Community GGUF build",
-            approximateSize = "~274 MB (Q4_K_M estimate)",
+            approximateSize = "274 MB (Q4_K_M)",
             format = "GGUF",
             intendedRole = "Secondary lightweight chat model",
             runtime = "Requires GGUF runtime; not compatible with current LiteRT engine",
-            status = "CANDIDATE — runtime integration required",
-            limitation = "Needs a separate GGUF-capable Android runtime, exact artifact/checksum and device tests."
+            status = "CANDIDATE — GPL-3.0 + runtime review required",
+            limitation = "Model card declares GPL-3.0. Needs a separate GGUF-capable Android runtime, exact artifact/checksum, distribution-license review and device tests."
         ),
         HairaModelCandidate(
             id = "qwen3-06b-litert",
