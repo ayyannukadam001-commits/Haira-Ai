@@ -4,7 +4,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 android {
-    androidResources { noCompress += "litertlm" }
+    androidResources { noCompress += listOf("litertlm", "gguf") }
     namespace = "com.haira.ai"
     compileSdk = 35
     defaultConfig {
@@ -35,5 +35,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.1")
+    implementation("dev.ffmpegkit-maintained:llama-android:0.1.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
