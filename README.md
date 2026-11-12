@@ -1,27 +1,35 @@
 # HAIRA AI
 
-## Part 4 — Safe Local Task Execution (v0.9.0)
+## Part 5 — Bundled Local Model (v1.0.0)
 
-Part 4 upgrades the Part 3 task tracker with a user-started execution path for the reviewed local tools already bundled in HAIRA.
+Part 5 packages HAIRA's curated Qwen3 0.6B LiteRT-LM starter model into the APK build. The GitHub Actions workflow downloads the official model during the build and verifies its pinned SHA-256 before packaging it as an Android asset.
 
-### What is added
-- Queue a local tool command from Serious Mode.
-- Press RUN to execute the selected command through the app-owned tool registry.
-- Persist task states as QUEUED, RUNNING, DONE, or FAILED in the app-private workspace.
-- Mark a task DONE only when a registered tool returns a result; unsupported commands are marked FAILED.
-- Show the actual tool result in the workstation status area.
+### First-launch setup
+- No manual model-file picker is required for the bundled release APK.
+- On first launch, HAIRA copies the packaged model into app-private storage.
+- HAIRA verifies the model SHA-256 again before loading it with LiteRT-LM.
+- The selected model path is saved locally and reused on later launches.
+- The existing manual import and verified Wi-Fi download remain fallback paths for development builds or recovery.
 
-### Supported execution commands
-- `create note: <title>`
-- `create project: <name>`
-- `list workspace files`
-- `search workspace: <term>`
+### Bundled model
+- Qwen3 0.6B LiteRT-LM
+- Model file: `Qwen3-0.6B.litertlm`
+- Approximate size: 586 MB
+- License: Apache-2.0
+- Source: `litert-community/Qwen3-0.6B`
+- SHA-256: `c5f39b4191926786c3e6668b62af4d6eb15248dfc7a5348252a9b406f33f2108`
+
+### Important limitations
+- This APK bundles one lightweight language model, not five separate AI models.
+- Chat and text generation use the bundled model. Image generation, video generation, advanced speech recognition, and 3D generation are not created merely by bundling this language model; those require separate compatible runtimes and models.
+- The model is copied from the APK into app-private storage, so installation needs additional free space (keep at least about 1.2 GB free).
+- The model runs locally; performance depends on available RAM, thermal state, Android version, and other running apps. First-launch model loading has not been verified on the user's physical phone.
+- No cloud AI API key or remote AI inference is added.
+
+### Previous parts retained
+Part 1 core chat/runtime, Part 2 workstation and local project tools, Part 3 verified model setup and reviewed tool registry, and Part 4 user-started local task execution remain in the cumulative branch.
 
 ### Safety and honest limitations
-- Execution is explicitly started by the user and runs in the foreground.
-- Only reviewed local workspace tools can run. No arbitrary shell commands, downloaded executable code, silent app installs, root access, or bypassing Android permissions.
-- This is not yet an autonomous general-purpose agent. It does not yet run long jobs in the background, generate code with guaranteed correctness, or execute arbitrary project builds.
-- Background execution, pause/resume of long-running work, signed tool packages, and broader model/tool catalog support remain future work.
-- Heavy image/video/3D generation remains constrained by the phone's RAM, storage, thermal limits, and available local models.
-
-Part 4 is a safe task-execution foundation, not a claim that every planned HAIRA capability is complete.
+- Only reviewed local tools can execute. No arbitrary shell commands, downloaded executable code, silent app installs, root access, or permission bypass.
+- Task execution remains user-started and foreground-only.
+- Heavy image/video/3D generation remains constrained by phone RAM, storage, thermal limits, and compatible local models.
