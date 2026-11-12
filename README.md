@@ -2,7 +2,7 @@
 
 ## Part 5 — Bundled Local Model (v1.0.0)
 
-Part 5 packages HAIRA's curated Qwen3 0.6B LiteRT-LM starter model into the APK build. The GitHub Actions workflow downloads the official model during the build and verifies its pinned SHA-256 before packaging it as an Android asset.
+Part 5 provides HAIRA's curated Qwen3 0.6B LiteRT-LM starter model through a verified first-launch Wi-Fi download. The APK build does not package model weights.
 
 ### First-launch setup
 - No manual model-file picker is required for the bundled release APK.
@@ -20,9 +20,9 @@ Part 5 packages HAIRA's curated Qwen3 0.6B LiteRT-LM starter model into the APK 
 - SHA-256: `c5f39b4191926786c3e6668b62af4d6eb15248dfc7a5348252a9b406f33f2108`
 
 ### Important limitations
-- This APK bundles one lightweight language model, not five separate AI models.
+- The APK does not bundle model weights; the starter model is downloaded on first launch.
 - Chat and text generation use the bundled model. Image generation, video generation, advanced speech recognition, and 3D generation are not created merely by bundling this language model; those require separate compatible runtimes and models.
-- The model is copied from the APK into app-private storage, so installation needs additional free space (keep at least about 1.2 GB free).
+- First launch needs an internet connection over unmetered Wi-Fi and additional free storage (keep at least about 1.2 GB free).
 - The model runs locally; performance depends on available RAM, thermal state, Android version, and other running apps. First-launch model loading has not been verified on the user's physical phone.
 - No cloud AI API key or remote AI inference is added.
 
@@ -53,7 +53,7 @@ Only reviewed app-bundled plugin code is executable. This version does not insta
 - Gemma and NanoLM are shown as candidates only. Gemma's exact artifact/checksum and NanoLM's GGUF runtime compatibility must be verified before enabling downloads.
 - Added honest provider-authentication metadata. Hugging Face Inference Providers require a Hugging Face user token; free credits do not mean anonymous/no-key inference.
 - No external inference is called, no paid service is used, and no user data is transmitted by this catalog foundation.
-- Current local Qwen3 remains the working baseline and backup. It is not removed until replacement models pass device verification.
+- Current local Qwen3 remains the recovery baseline. It is downloaded on first launch rather than bundled in the APK, and it is not removed until replacement models pass device verification.
 
 ### Not yet completed
 - Gemma 3 1B verified download + runtime integration.
