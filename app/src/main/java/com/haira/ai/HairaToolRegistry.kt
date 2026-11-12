@@ -40,8 +40,8 @@ class HairaToolRegistry(context: Context) {
             .take(100)
             .toList()
         if (files.isEmpty()) return "HAIRA workspace abhi empty hai."
-        return "Workspace files (\${files.size}):\n" + files.joinToString("\n") {
-            "- \${it.relativeTo(workspace).path} (\${it.length()} bytes)"
+        return "Workspace files (${files.size}):\n" + files.joinToString("\n") {
+            "- ${it.relativeTo(workspace).path} (${it.length()} bytes)"
         }
     }
 
@@ -56,7 +56,7 @@ class HairaToolRegistry(context: Context) {
             suffix++
         }
         file.writeText("# $safeTitle\n\nCreated by HAIRA AI.\n")
-        return "Note create ho gayi: \${file.name}"
+        return "Note create ho gayi: ${file.name}"
     }
 
     private fun searchWorkspace(query: String): String {
@@ -67,7 +67,7 @@ class HairaToolRegistry(context: Context) {
             .take(100)
             .mapNotNull { file ->
                 val line = runCatching { file.useLines { lines -> lines.firstOrNull { it.contains(needle, ignoreCase = true) } } }.getOrNull()
-                if (line == null) null else "\${file.relativeTo(workspace).path}: \${line.take(180)}"
+                if (line == null) null else "${file.relativeTo(workspace).path}: ${line.take(180)}"
             }
             .take(20)
             .toList()
