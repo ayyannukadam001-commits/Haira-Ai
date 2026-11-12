@@ -4,14 +4,15 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 android {
+    androidResources { noCompress += "litertlm" }
     namespace = "com.haira.ai"
     compileSdk = 35
     defaultConfig {
         applicationId = "com.haira.ai"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "0.9.0"
+        versionCode = 12
+        versionName = "1.0.0"
     }
     buildTypes { release { isMinifyEnabled = false } }
     compileOptions {
