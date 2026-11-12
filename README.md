@@ -42,3 +42,25 @@ Serious Mode includes a Plugin Center with per-plugin enable/disable controls fo
 Gmail and Google Drive entries are external web shortcuts only: they open the official websites in the browser. Authentication happens directly with Google. HAIRA does not collect passwords, access account contents, or claim OAuth/API integration. Full Gmail/Drive data access would require a separate reviewed Google OAuth implementation and explicit consent.
 
 Only reviewed app-bundled plugin code is executable. This version does not install arbitrary plugin packages or run downloaded code. App version remains 1.0.0 (versionCode 12).
+
+
+## Part 6 — Hybrid redesign foundation (v1.1.0)
+
+- Version: 1.1.0 (versionCode 13).
+- Simplified phone navigation to Home, Chat, Models, Memory and Settings; Work Mode remains available from the header.
+- Removed inactive placeholder Studios panel and Gmail/Drive website-shortcut callback. GitHub Manager remains available inside Work Mode.
+- Added a model intelligence catalog for Gemma 3 1B INT4 QAT, NanoLM-0.3B-Instruct-v1.1 and the existing Qwen3 recovery model.
+- Gemma and NanoLM are shown as candidates only. Gemma's exact artifact/checksum and NanoLM's GGUF runtime compatibility must be verified before enabling downloads.
+- Added honest provider-authentication metadata. Hugging Face Inference Providers require a Hugging Face user token; free credits do not mean anonymous/no-key inference.
+- No external inference is called, no paid service is used, and no user data is transmitted by this catalog foundation.
+- Current local Qwen3 remains the working baseline and backup. It is not removed until replacement models pass device verification.
+
+### Not yet completed
+- Gemma 3 1B verified download + runtime integration.
+- NanoLM GGUF runtime and verified model integration.
+- Live provider discovery/health checks against documented endpoints.
+- Runtime switching, memory-pressure handling and physical-device performance tests.
+- Full UI/device regression and APK build for v1.1.0.
+
+### Important compatibility note
+The existing inference engine is LiteRT-LM 0.18.1 and loads `.litertlm` files. The NanoLM candidate is GGUF; it cannot be loaded by the existing engine. A second compatible runtime is required. The app must not pretend these formats are interchangeable.
