@@ -461,7 +461,7 @@ private fun HomeScreen(messageCount: Int, memoryCount: Int, modelLoaded: Boolean
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 StatusCard("VOICE OUTPUT", "DEVICE TTS", "phone voice engine", Modifier.weight(1f))
-                StatusCard("AI CONNECTION", "OFFLINE", "no cloud AI API", Modifier.weight(1f))
+                StatusCard("AI ARCHITECTURE", "LOCAL FIRST", "external providers optional", Modifier.weight(1f))
             }
         }
         item { SettingRow("On-device inference", "LiteRT-LM runtime • CPU backend • bundled local model") }
@@ -586,7 +586,7 @@ private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: St
         SettingRow("Runtime", "Google LiteRT-LM • CPU backend")
         SettingRow("Model format", "Bundled Qwen3 .litertlm model")
         SettingRow("Storage", "Qwen3 0.6B is bundled in this APK and copied to private storage on first launch")
-        SettingRow("AI network", "Inference runs locally. No AI API key or remote AI endpoint.")
+        SettingRow("AI network", "Local inference is the default. External inference is optional and requires a verified provider access method.")
         SettingRow("Device limits", "Model files may be large. Speed and stability depend on model size, free RAM, heat and storage. Start with a small model.")
         Text("LOCAL MODEL CANDIDATES", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
         HairaIntelligenceCatalog.localCandidates.forEach { candidate ->
@@ -604,6 +604,11 @@ private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: St
         HairaIntelligenceCatalog.externalAccessStates.forEach { state ->
             SettingRow("Access classification", state)
         }
+        Text("KNOWN PROVIDER AUTH REQUIREMENTS", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        HairaExternalProviderCatalog.providers.forEach { provider ->
+            SettingRow(provider.name + " • " + provider.access, provider.notes)
+        }
+        SettingRow("Verified no-key providers", HairaExternalProviderCatalog.noKeyVerifiedProviders.size.toString() + " currently verified")
         Text("A model file is required for general local AI chat. Candidate models are not enabled until their format, runtime and checksum are verified.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
     }
 }
@@ -621,7 +626,7 @@ private fun SettingsScreen(messageCount: Int, memoryCount: Int, autoSpeak: Boole
                 Switch(checked = autoSpeak, onCheckedChange = onAutoSpeak)
             }
         }
-        SettingRow("AI architecture", "Local LiteRT-LM inference • no remote AI endpoint")
+        SettingRow("AI architecture", "Local-first LiteRT-LM • optional external provider discovery")
         SettingRow("Conversation storage", messageCount.toString() + " messages saved locally")
         SettingRow("Pinned memories", memoryCount.toString() + " notes saved locally")
         SettingRow("Voice input", "Android speech recognizer • offline preference depends on installed speech service")
