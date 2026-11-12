@@ -29,7 +29,7 @@ private val WorkGold = Color(0xFFD7B56D)
 private data class WorkTask(val id: String, val title: String, val state: String)
 
 @Composable
-fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: List<HairaToolDescriptor>, modelStatus: String, modelBusy: Boolean, downloadProgress: Float, onDownloadStarterModel: () -> Unit, onOpenModel: () -> Unit, onReturnNormal: () -> Unit, onExecuteTask: (String) -> String?, onOpenExternalPlugin: (String) -> String) {
+fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: List<HairaToolDescriptor>, modelStatus: String, modelBusy: Boolean, downloadProgress: Float, onDownloadStarterModel: () -> Unit, onOpenModel: () -> Unit, onReturnNormal: () -> Unit, onExecuteTask: (String) -> String?) {
     val workspace = remember { File(context.filesDir, "haira_workspace").apply { mkdirs() } }
     var section by remember { mutableStateOf("OVERVIEW") }
     var files by remember { mutableStateOf(emptyList<File>()) }
