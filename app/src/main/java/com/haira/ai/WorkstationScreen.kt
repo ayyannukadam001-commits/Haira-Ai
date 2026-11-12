@@ -96,12 +96,12 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
                     Panel("TASK TRACKER", "Tracks queued and completed work. It does not claim background execution or fabricated progress.") { OutlinedButton(onClick = { section = "TASK QUEUE" }) { Text("OPEN QUEUE", fontSize = 9.sp) } }
                 }
                 "SELF SETUP" -> {
-                    Panel("AUTOMATIC MODEL SETUP", "HAIRA includes its starter LiteRT-LM model inside this APK. On first launch it copies the model into private storage, verifies SHA-256 and loads it automatically.") {
+                    Panel("AUTOMATIC MODEL SETUP", "HAIRA downloads its starter LiteRT-LM model over unmetered Wi-Fi on first launch, verifies SHA-256, then loads it from private storage.") {
                         Text("STARTER MODEL", color = WorkCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         Text(HairaModelCatalog.starter.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         Text(HairaModelCatalog.starter.description, color = WorkMuted, fontSize = 9.sp)
                         Text("Source: ${HairaModelCatalog.starter.sourceLabel} • License: ${HairaModelCatalog.starter.license}", color = WorkMuted, fontSize = 8.sp)
-                        Text("The bundled model is installed automatically on first launch. Keep about 1.2 GB free storage for the private copy. Manual download remains available as a fallback.", color = WorkGold, fontSize = 8.sp)
+                        Text("The model is not bundled in the APK. First-launch setup needs Wi-Fi and about 1.2 GB free storage. Download resumes after interruptions; manual import remains available as a fallback.", color = WorkGold, fontSize = 8.sp)
                         if (modelBusy) {
                             LinearProgressIndicator(progress = downloadProgress, modifier = Modifier.fillMaxWidth())
                             Text("Setup in progress…", color = WorkCyan, fontSize = 9.sp)
