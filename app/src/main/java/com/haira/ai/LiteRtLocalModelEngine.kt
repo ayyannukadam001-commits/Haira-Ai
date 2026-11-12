@@ -64,7 +64,7 @@ class LiteRtLocalModelEngine(private val cacheDirectory: File) {
         val active = conversation ?: error("No local model is loaded. Import a compatible .litertlm model first.")
         val answer = StringBuilder()
         active.sendMessageAsync(prompt).collect { message ->
-            answer.append(message.text)
+            answer.append(message.toString())
         }
         answer.toString().trim().ifBlank { "The local model returned an empty response. Try again with a shorter message." }
     }
