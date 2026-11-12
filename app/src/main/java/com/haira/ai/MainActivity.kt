@@ -239,15 +239,17 @@ private fun HairaApp(
         Scaffold(
             containerColor = Bg,
             bottomBar = {
-                NavigationBar(containerColor = Color(0xFF09121E), contentColor = Cyan) {
-                    listOf("HOME", "CHAT", "MEMORY", "MODEL", "GITHUB", "SETTINGS").forEach { item ->
-                        NavigationBarItem(
-                            selected = tab == item,
-                            onClick = { tab = item },
-                            icon = { Text(when (item) { "HOME" -> "⌂"; "CHAT" -> "◌"; "MEMORY" -> "▤"; "MODEL" -> "⬡"; "GITHUB" -> "⌘"; else -> "⚙" }, fontSize = 17.sp) },
-                            label = { Text(item, fontSize = 8.sp, maxLines = 1) },
-                            colors = NavigationBarItemDefaults.colors(selectedIconColor = Cyan, selectedTextColor = Cyan, indicatorColor = Color(0xFF173044), unselectedIconColor = Muted, unselectedTextColor = Muted)
-                        )
+                if (!seriousMode) {
+                    NavigationBar(containerColor = Color(0xFF09121E), contentColor = Cyan) {
+                        listOf("HOME", "CHAT", "MEMORY", "MODEL", "GITHUB", "SETTINGS").forEach { item ->
+                            NavigationBarItem(
+                                selected = tab == item,
+                                onClick = { tab = item },
+                                icon = { Text(when (item) { "HOME" -> "⌂"; "CHAT" -> "◌"; "MEMORY" -> "▤"; "MODEL" -> "⬡"; "GITHUB" -> "⌘"; else -> "⚙" }, fontSize = 17.sp) },
+                                label = { Text(item, fontSize = 8.sp, maxLines = 1) },
+                                colors = NavigationBarItemDefaults.colors(selectedIconColor = Cyan, selectedTextColor = Cyan, indicatorColor = Color(0xFF173044), unselectedIconColor = Muted, unselectedTextColor = Muted)
+                            )
+                        }
                     }
                 }
             }
