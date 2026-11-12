@@ -87,7 +87,20 @@ class MainActivity : ComponentActivity() {
                 speak = { text -> if (ttsReady) tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "haira_reply") },
                 handleCommand = ::handleCommand,
                 toolDescriptors = toolRegistry.tools,
-                executeLocalTask = toolRegistry::execute
+                executeLocalTask = toolRegistry::execute,
+                onOpenExternalPlugin = { id ->
+                    val url = when (id) {
+                        "gmail" -> "https://mail.google.com/"
+                        "drive" -> "https://drive.google.com/"
+                        else -> null
+                    }
+                    if (url == null) {
+                        "Unknown external integration."
+                    } else {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                        "Opened the official website. Full account-data access is not connected."
+                    }
+                }
             )
         }
     }
