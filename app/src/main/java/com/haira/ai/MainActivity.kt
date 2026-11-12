@@ -326,7 +326,7 @@ private fun Header() {
         }
         Column(horizontalAlignment = Alignment.End) {
             Text("GATEWAY AI", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-            Text("BUILD 0.6.0", color = Muted, fontSize = 9.sp)
+            Text("BUILD 0.5.0", color = Muted, fontSize = 9.sp)
         }
     }
 }
