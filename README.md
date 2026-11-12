@@ -35,10 +35,16 @@ Part 1 core chat/runtime, Part 2 workstation and local project tools, Part 3 ver
 - Heavy image/video/3D generation remains constrained by phone RAM, storage, thermal limits, and compatible local models.
 
 
-## Plugin Center (v1.0.0 update)
+## Work Mode tools and integration status
 
-Serious Mode includes a Plugin Center with per-plugin enable/disable controls for reviewed local workspace tools (file listing, notes, search, project scaffolding). Enable states are stored locally on the device and disabled plugins reject their matching chat commands.
+Work Mode retains reviewed local workspace tools, file management, the source/text editor and user-started task queue. The editor saves files; it does not compile or run arbitrary Android projects on-device.
 
-Gmail and Google Drive entries are external web shortcuts only: they open the official websites in the browser. Authentication happens directly with Google. HAIRA does not collect passwords, access account contents, or claim OAuth/API integration. Full Gmail/Drive data access would require a separate reviewed Google OAuth implementation and explicit consent.
+Gmail and Google Drive browser shortcuts are not presented as working integrations in the redesign branch because they did not provide account-data access. Full account integrations would require a separate, reviewed OAuth implementation and explicit user consent.
 
-Only reviewed app-bundled plugin code is executable. This version does not install arbitrary plugin packages or run downloaded code. App version remains 1.0.0 (versionCode 12).
+Only reviewed app-bundled tool code is executable. This app does not install arbitrary plugin packages, silently run downloaded code, or bypass Android permissions.
+
+## Redesign branch
+
+The active redesign work is isolated on `feature/haira-redesign-hybrid-models-v1.1.0`. See [HAIRA_REDESIGN_PLAN.md](HAIRA_REDESIGN_PLAN.md) for the audit, removed placeholders, external-provider access checks, model compatibility gates and planned upgrades.
+
+The previous v1.0.0 branch remains preserved. The redesign branch has not yet passed a new APK build or physical-device verification. App version remains 1.0.0 (versionCode 12) until that verification is complete.
