@@ -202,7 +202,7 @@ private fun HairaApp(
 
     fun sendMessage() {
         val text = draft.trim()
-        if (text.isEmpty()) return
+        if (text.isEmpty() || gatewayBusy || busy) return
         messages = (messages + ChatMessage(text, true)).takeLast(300)
         saveMessages(messages)
         draft = ""
@@ -213,7 +213,6 @@ private fun HairaApp(
             saveMessages(messages)
             return
         }
-        if (gatewayBusy || busy) return
         messages = (messages + ChatMessage("", false)).takeLast(300)
         busy = true
         val history = messages.dropLast(1).takeLast(24).map {
@@ -275,15 +274,17 @@ private fun HairaApp(
                             gatewayStatus = "Settings saved. Test the connection."
                         },
                         onTest = {
-                            if (gatewayBusy) return@SettingsScreen
-                            gatewayBusy = true
-                            gatewayStatus = "Checking gateway..."
-                            gatewayClient.testConnection(gatewayConfig) { result ->
-                                gatewayBusy = false
-                                gatewayStatus = result.fold(
-                                    { models -> if (models.isEmpty()) "Connected, but no models were listed" else "Connected • ${models.size} models found: ${models.take(4).joinToString()}" },
-                                    { error -> "Connection failed: ${error.message ?: "Unknown error"}" }
-                                )
+                            if (!gatewayBusy) {
+                                saveGatewayConfig(gatewayConfig)
+                                gatewayBusy = true
+                                gatewayStatus = "Checking gateway..."
+                                gatewayClient.testConnection(gatewayConfig) { result ->
+                                    gatewayBusy = false
+                                    gatewayStatus = result.fold(
+                                        { models -> if (models.isEmpty()) "Connected, but no models were listed" else "Connected • ${models.size} models found: ${models.take(4).joinToString()}" },
+                                        { error -> "Connection failed: ${error.message ?: "Unknown error"}" }
+                                    )
+                                }
                             }
                         },
                         onClear = { messages = emptyList(); clearMessages() }
