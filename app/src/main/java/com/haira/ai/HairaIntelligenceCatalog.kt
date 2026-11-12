@@ -19,17 +19,19 @@ data class HairaModelCandidate(
 )
 
 object HairaIntelligenceCatalog {
+    const val gemmaOfficialModelPage = "https://huggingface.co/litert-community/Gemma3-1B-IT"
+
     val localCandidates = listOf(
         HairaModelCandidate(
             id = "gemma3-1b-int4-qat",
             name = "Gemma 3 1B INT4 QAT",
             provider = "Google",
-            approximateSize = "~584 MB download (529 MB benchmark model size)",
+            approximateSize = "~584 MB (584,417,280 bytes)",
             format = "LiteRT-LM (.litertlm)",
             intendedRole = "Primary general assistant",
             runtime = "LiteRT-LM",
-            status = "CANDIDATE — Gemma terms acceptance required",
-            limitation = "The public repository is gated: a Hugging Face account must accept the Gemma terms. The 584 MB .litertlm artifact has no pinned checksum in this app yet; Redmi 13 5G testing is required."
+            status = "SUPPORTED FORMAT — MANUAL OFFICIAL DOWNLOAD + IMPORT",
+            limitation = "Official model page requires sign-in and acceptance of Gemma terms. Download Gemma3-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm there, then import it in HAIRA. Automatic gated download is intentionally not enabled; checksum validation and Redmi 13 5G performance testing remain pending."
         ),
         HairaModelCandidate(
             id = "nanolm-03b-instruct",
