@@ -266,6 +266,7 @@ private fun HairaApp(
                         context = context,
                         modelLoaded = modelLoaded,
                         modelStatus = modelStatus,
+                        modelBusy = modelBusy,
                         downloadProgress = downloadProgress,
                         onDownloadStarterModel = {
                             if (!modelBusy) scope.launch {
