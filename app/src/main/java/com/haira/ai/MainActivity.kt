@@ -85,7 +85,8 @@ class MainActivity : ComponentActivity() {
                 rememberModel = { path -> getSharedPreferences("haira_model", MODE_PRIVATE).edit().putString("path", path).apply() },
                 speak = { text -> if (ttsReady) tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "haira_reply") },
                 handleCommand = ::handleCommand,
-                toolDescriptors = toolRegistry.tools
+                toolDescriptors = toolRegistry.tools,
+                executeLocalTask = toolRegistry::execute
             )
         }
     }
@@ -138,7 +139,8 @@ private fun HairaApp(
     rememberModel: (String) -> Unit,
     speak: (String) -> Unit,
     handleCommand: (String) -> String?,
-    toolDescriptors: List<HairaToolDescriptor>
+    toolDescriptors: List<HairaToolDescriptor>,
+    executeLocalTask: (String) -> String?
 ) {
     val messages = remember { mutableStateListOf<HairaMessage>().apply { addAll(memoryStore.loadMessages()) } }
     val memories = remember { mutableStateListOf<HairaMemory>().apply { addAll(memoryStore.loadMemories()) } }
@@ -301,7 +303,8 @@ private fun HairaApp(
                             }
                         },
                         onOpenModel = { seriousMode = false; tab = "MODEL" },
-                        onReturnNormal = { seriousMode = false }
+                        onReturnNormal = { seriousMode = false },
+                        onExecuteTask = executeLocalTask
                     )
                 } else when (tab) {
                     "HOME" -> HomeScreen(messages.size, memories.size, modelLoaded, modelStatus) { tab = "CHAT" }
