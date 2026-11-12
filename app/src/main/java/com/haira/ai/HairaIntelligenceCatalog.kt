@@ -41,9 +41,9 @@ object HairaIntelligenceCatalog {
             approximateSize = "274 MB (Q4_K_M)",
             format = "GGUF",
             intendedRole = "Secondary lightweight chat model",
-            runtime = "Requires GGUF runtime; not compatible with current LiteRT engine",
-            status = "GGUF ARTIFACT VERIFIED — ANDROID RUNTIME NOT YET INTEGRATED",
-            limitation = "Q4_K_M GGUF is listed at about 274 MB on the quantized model page. The model is GPL-3.0. HAIRA still needs a native GGUF runtime build, license review, checksum validation and Redmi device testing before it can load this model in chat."
+            runtime = "llama.cpp Android CPU runtime",
+            status = "BUNDLED IN APK — DEVICE PERFORMANCE TEST PENDING",
+            limitation = "Q4_K_M GGUF is fetched during the GitHub Actions build, verified against upstream SHA-256 metadata, and packaged in the APK. It is extracted into app-private storage on first launch. GPL-3.0 license and attribution are included. Roman Hinglish quality and Redmi 13 5G speed still require device testing."
         ),
         HairaModelCandidate(
             id = "qwen3-06b-litert",
