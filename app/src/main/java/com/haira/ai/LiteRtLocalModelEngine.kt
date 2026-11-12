@@ -7,6 +7,9 @@ import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.SamplerConfig
+import dev.ffmpegkit.llama.Llama
+import dev.ffmpegkit.llama.LlamaConfig
+import dev.ffmpegkit.llama.LlamaModel
 import java.io.File
 import java.util.concurrent.Executors
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -25,13 +28,32 @@ class LiteRtLocalModelEngine(private val cacheDirectory: File) {
     private var engine: Engine? = null
     private var conversation: Conversation? = null
     private var loadedModelPath: String? = null
+    private var nanoModel: LlamaModel? = null
 
-    val isLoaded: Boolean get() = conversation != null
+    val isLoaded: Boolean get() = conversation != null || nanoModel?.isLoaded == true
     val currentModelPath: String? get() = loadedModelPath
 
     suspend fun load(modelFile: File) = withContext(dispatcher) {
         require(modelFile.isFile && modelFile.length() > 0L) { "Selected model file is missing or empty." }
         closeInternal()
+        if (modelFile.extension.equals("gguf", ignoreCase = true)) {
+            nanoModel = Llama.loadModel(
+                modelPath = modelFile.absolutePath,
+                config = LlamaConfig(
+                    contextSize = 2048,
+                    threads = Runtime.getRuntime().availableProcessors().coerceIn(2, 4),
+                    gpuLayers = 0,
+                    temperature = 0.7f,
+                    topP = 0.9f,
+                    topK = 40
+                )
+            )
+            loadedModelPath = modelFile.absolutePath
+            return@withContext
+        }
+        require(modelFile.extension.equals("litertlm", ignoreCase = true)) {
+            "Unsupported model format. HAIRA supports bundled GGUF NanoLM and LiteRT-LM models."
+        }
         val candidate = Engine(
             EngineConfig(
                 modelPath = modelFile.absolutePath,
@@ -61,7 +83,16 @@ class LiteRtLocalModelEngine(private val cacheDirectory: File) {
     }
 
     suspend fun generate(prompt: String): String = withContext(dispatcher) {
-        val active = conversation ?: error("No local model is loaded. Import a compatible .litertlm model first.")
+        val gguf = nanoModel
+        if (gguf?.isLoaded == true) {
+            return@withContext Llama.complete(
+                model = gguf,
+                prompt = prompt,
+                systemPrompt = "You are HAIRA AI, a concise on-device assistant. Reply in the user's language when supported. Be honest about uncertainty and never claim an action happened unless it did.",
+                maxTokens = 256
+            ).text.trim().ifBlank { "The local model returned an empty response. Try a shorter message." }
+        }
+        val active = conversation ?: error("No local model is loaded. Select NanoLM or load a compatible .litertlm model.")
         val answer = StringBuilder()
         active.sendMessageAsync(prompt).collect { message ->
             answer.append(message.toString())
@@ -79,6 +110,8 @@ class LiteRtLocalModelEngine(private val cacheDirectory: File) {
     private fun closeInternal() {
         runCatching { conversation?.close() }
         conversation = null
+        nanoModel?.let { runCatching { Llama.releaseModel(it) } }
+        nanoModel = null
         runCatching { engine?.close() }
         engine = null
         loadedModelPath = null
