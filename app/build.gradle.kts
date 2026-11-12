@@ -10,8 +10,8 @@ android {
         applicationId = "com.haira.ai"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.5.0"
+        versionCode = 8
+        versionName = "0.6.0"
     }
     buildTypes { release { isMinifyEnabled = false } }
     compileOptions {
@@ -33,5 +33,6 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
