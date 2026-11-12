@@ -31,8 +31,8 @@ object HairaIntelligenceCatalog {
             format = "LiteRT-LM (.litertlm)",
             intendedRole = "Primary general assistant",
             runtime = "LiteRT-LM",
-            status = "SUPPORTED FORMAT — MANUAL OFFICIAL DOWNLOAD + IMPORT",
-            limitation = "Official model page requires sign-in and acceptance of Gemma terms. Download Gemma3-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm there, then import it in HAIRA. Automatic gated download is intentionally not enabled; checksum validation and Redmi 13 5G performance testing remain pending."
+            status = "IN-APP DOWNLOAD AVAILABLE — TERMS ACKNOWLEDGEMENT REQUIRED",
+            limitation = "HAIRA downloads a 584,417,280-byte LiteRT-LM artifact from a Hugging Face mirror and checks its pinned SHA-256 before loading. The in-app checkbox records the user's acknowledgement; it does not verify a Google account or official gated access. Review the Gemma Terms and model provenance. Redmi 13 5G performance testing remains pending."
         ),
         HairaModelCandidate(
             id = "nanolm-03b-instruct",
