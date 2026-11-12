@@ -402,7 +402,7 @@ private fun HairaApp(
                         onExecuteTask = executeLocalTask
                     )
                 } else when (tab) {
-                    "HOME" -> HomeScreen(messages.size, memories.size, modelLoaded, modelStatus) { tab = "CHAT" }
+                    "HOME" -> HomeScreen(messages.size, memories.size, modelLoaded, modelStatus, onChat = { tab = "CHAT" }, onWorkMode = { seriousMode = true })
                     "CHAT" -> ChatScreen(messages, draft, { draft = it }, { sendMessage() }, {
                         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -491,55 +491,95 @@ private fun HairaHeader(modelLoaded: Boolean, onEnterSerious: () -> Unit) {
 }
 
 @Composable
-private fun HomeScreen(messageCount: Int, memoryCount: Int, modelLoaded: Boolean, modelStatus: String, onChat: () -> Unit) {
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 15.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+private fun HomeScreen(
+    messageCount: Int,
+    memoryCount: Int,
+    modelLoaded: Boolean,
+    modelStatus: String,
+    onChat: () -> Unit,
+    onWorkMode: () -> Unit
+) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 4.dp, bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Text("Good to see you, Sir ji.", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            Text("Your private, on-device command space.", color = Muted, fontSize = 10.sp)
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("YOUR PERSONAL AI SPACE", color = Cyan, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                Text("HAIRA is online.", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+                Text("Local-first intelligence • Private by design", color = Muted, fontSize = 10.sp)
+            }
         }
         item { HoloCore(modelLoaded) }
         item {
-            Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Surface(color = Panel, shape = RoundedCornerShape(17.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Cyan.copy(alpha = 0.22f)), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("LOCAL AI CORE", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                        Text("CORE STATUS", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
                         Spacer(Modifier.weight(1f))
-                        Text(if (modelLoaded) "READY" else "SETUP REQUIRED", color = if (modelLoaded) Color(0xFF8BE0B0) else Gold, fontSize = 8.sp)
+                        Surface(color = if (modelLoaded) Color(0xFF12382F) else Color(0xFF3B2D19), shape = RoundedCornerShape(30.dp)) {
+                            Text(if (modelLoaded) " READY " else " SETUP NEEDED ", color = if (modelLoaded) Color(0xFF8BE0B0) else Gold, fontSize = 8.sp, modifier = Modifier.padding(horizontal = 5.dp, vertical = 3.dp))
+                        }
                     }
                     Text(modelStatus, color = Color(0xFFC0CFDA), fontSize = 10.sp, lineHeight = 15.sp)
-                    OutlinedButton(onClick = onChat, modifier = Modifier.fillMaxWidth()) { Text("OPEN HAIRA CHAT  →", color = Cyan) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = onChat, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF12384A))) {
+                            Text("TALK TO HAIRA", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                        OutlinedButton(onClick = onWorkMode, modifier = Modifier.weight(1f), border = androidx.compose.foundation.BorderStroke(1.dp, Cyan.copy(alpha = 0.65f))) {
+                            Text("WORK MODE  ↗", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }
         item {
+            Text("LIVE SYSTEM PANELS", color = Muted, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusCard("CHAT HISTORY", messageCount.toString(), "saved locally", Modifier.weight(1f))
-                StatusCard("PINNED MEMORY", memoryCount.toString(), "saved notes", Modifier.weight(1f))
+                StatusCard("CHAT HISTORY", messageCount.toString(), "saved on device", Modifier.weight(1f))
+                StatusCard("MEMORY VAULT", memoryCount.toString(), "saved notes", Modifier.weight(1f))
             }
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusCard("AI ENGINE", if (modelLoaded) "READY" else "WAITING", "local inference", Modifier.weight(1f))
                 StatusCard("VOICE OUTPUT", "DEVICE TTS", "phone voice engine", Modifier.weight(1f))
-                StatusCard("AI ARCHITECTURE", "LOCAL FIRST", "external providers optional", Modifier.weight(1f))
             }
         }
-        item { SettingRow("On-device inference", "LiteRT-LM runtime • CPU backend • local model") }
+        item {
+            Surface(color = Color(0xFF0A1724), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("COMMAND DECK", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Text("Say or type: Activate Work Mode", color = Color.White, fontSize = 11.sp)
+                    Text("Open Memory • Voice On • Save Memory: ... • Help", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+                }
+            }
+        }
         item { SettingRow("Privacy", "Chat history and pinned memories stay in app-private storage") }
-        item { SettingRow("Voice input", "Android speech recognizer • offline availability depends on installed speech service") }
+        item { SettingRow("Voice input", "Android speech recognition • offline support depends on the installed speech service") }
     }
 }
 
 @Composable
 private fun HoloCore(active: Boolean) {
     val motion = androidx.compose.animation.core.rememberInfiniteTransition(label = "haira_core")
-    val glow by motion.animateFloat(0.8f, 1f, animationSpec = androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1800), repeatMode = androidx.compose.animation.core.RepeatMode.Reverse), label = "glow")
-    Box(Modifier.fillMaxWidth().height(175.dp).clip(RoundedCornerShape(22.dp)).background(Brush.radialGradient(listOf(Color(0xFF17445A), Color(0xFF0B1B2A), Color(0xFF07111D), Color.Transparent))), contentAlignment = Alignment.Center) {
-        Surface(color = Color(0xFF0B2434), shape = CircleShape, border = androidx.compose.foundation.BorderStroke(1.dp, Cyan.copy(alpha = 0.6f * glow)), modifier = Modifier.size(120.dp)) {
-            Box(contentAlignment = Alignment.Center) { Text("H", color = Cyan.copy(alpha = if (active) 1f else 0.65f), fontSize = 66.sp, fontWeight = FontWeight.Light) }
+    val pulse by motion.animateFloat(
+        initialValue = 0.88f,
+        targetValue = 1.06f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(2200),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "core_pulse"
+    )
+    Box(Modifier.fillMaxWidth().height(224.dp).clip(RoundedCornerShape(24.dp)).background(Brush.radialGradient(listOf(Color(0xFF174D66), Color(0xFF0B263A), Color(0xFF071421), Bg))), contentAlignment = Alignment.Center) {
+        Surface(color = Color.Transparent, shape = CircleShape, border = androidx.compose.foundation.BorderStroke(1.dp, Cyan.copy(alpha = 0.22f)), modifier = Modifier.size(196.dp * pulse)) {}
+        Surface(color = Color.Transparent, shape = CircleShape, border = androidx.compose.foundation.BorderStroke(1.dp, Cyan.copy(alpha = 0.38f)), modifier = Modifier.size(154.dp / pulse)) {}
+        Surface(color = Color(0xFF0A293B).copy(alpha = 0.9f), shape = CircleShape, border = androidx.compose.foundation.BorderStroke(1.5.dp, Cyan.copy(alpha = 0.8f)), modifier = Modifier.size(112.dp)) {
+            Box(contentAlignment = Alignment.Center) {
+                Text("H", color = Cyan.copy(alpha = if (active) 1f else 0.65f), fontSize = 65.sp, fontWeight = FontWeight.Light)
+            }
         }
-        Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("HAIRA CORE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-            Text(if (active) "ON-DEVICE INFERENCE READY" else "LOCAL MODEL AWAITS IMPORT", color = Cyan, fontSize = 7.sp)
+        Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 11.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("H A I R A", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
+            Text(if (active) "LOCAL INTELLIGENCE ACTIVE" else "AWAITING LOCAL MODEL", color = Cyan, fontSize = 7.sp, letterSpacing = 1.2.sp)
         }
     }
 }
