@@ -41,6 +41,8 @@ printf '%s  %s\n' "$SHA256" "$MODEL_PATH" | sha256sum --check -
 
 echo "Adding GPL-3.0 license and model attribution..."
 curl --fail --silent --show-error --location --retry 3 https://www.gnu.org/licenses/gpl-3.0.txt -o "${LICENSE_DIR}/GPL-3.0.txt"
+curl --fail --silent --show-error --location --retry 3 https://raw.githubusercontent.com/ffmpegkit-maintained/llama-android/main/LICENSE -o "${LICENSE_DIR}/LLAMA-ANDROID-MIT.txt"
+curl --fail --silent --show-error --location --retry 3 https://raw.githubusercontent.com/ffmpegkit-maintained/llama-android/main/THIRD-PARTY-NOTICES.txt -o "${LICENSE_DIR}/LLAMA-ANDROID-THIRD-PARTY-NOTICES.txt"
 cat > "${LICENSE_DIR}/NANOLM-NOTICE.txt" <<NOTICE
 NanoLM-0.3B-Instruct-v1.1 Q4_K_M
 Model source: https://huggingface.co/${MODEL_REPO}
