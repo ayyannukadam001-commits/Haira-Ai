@@ -9,6 +9,7 @@ on:
       - "feature/haira-part4-task-engine-v0.9.0"
       - "feature/haira-part5-bundled-model-v1.0.0"
       - "feature/haira-hybrid-redesign-v1.1.0"
+      - "feature/haira-nanolm-bundled-runtime-v1.2.0"
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
@@ -32,6 +33,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.14.6"
+      - name: Fetch and verify bundled NanoLM GGUF
+        run: bash scripts/fetch-nanolm.sh
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
       - name: Verify APK exists
@@ -41,6 +44,6 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v7
         with:
-          name: HAIRA-debug-APK-v1.1.0
+          name: HAIRA-debug-APK-v1.2.0
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
