@@ -82,6 +82,8 @@ class MainActivity : ComponentActivity() {
                 gatewayClient = gatewayClient,
                 loadGatewayConfig = ::loadGatewayConfig,
                 saveGatewayConfig = ::saveGatewayConfig,
+                loadAutoSpeak = ::loadAutoSpeak,
+                saveAutoSpeak = ::saveAutoSpeak,
                 handleCommand = ::handleCommand
             )
         }
@@ -104,6 +106,13 @@ class MainActivity : ComponentActivity() {
             .putString("model", config.model.trim())
             .apply()
         secureKeyStore.saveApiKey(config.apiKey)
+    }
+
+    private fun loadAutoSpeak(): Boolean =
+        getSharedPreferences("haira_voice", MODE_PRIVATE).getBoolean("auto_speak", false)
+
+    private fun saveAutoSpeak(enabled: Boolean) {
+        getSharedPreferences("haira_voice", MODE_PRIVATE).edit().putBoolean("auto_speak", enabled).apply()
     }
 
     private fun handleCommand(raw: String): String? {
@@ -182,6 +191,8 @@ private fun HairaApp(
     gatewayClient: GatewayAiClient,
     loadGatewayConfig: () -> GatewayConfig,
     saveGatewayConfig: (GatewayConfig) -> Unit,
+    loadAutoSpeak: () -> Boolean,
+    saveAutoSpeak: (Boolean) -> Unit,
     handleCommand: (String) -> String?
 ) {
     var messages by remember { mutableStateOf(loadMessages()) }
@@ -191,6 +202,7 @@ private fun HairaApp(
     var gatewayConfig by remember { mutableStateOf(loadGatewayConfig()) }
     var gatewayStatus by remember { mutableStateOf("Not tested yet") }
     var gatewayBusy by remember { mutableStateOf(false) }
+    var autoSpeak by remember { mutableStateOf(loadAutoSpeak()) }
     var busy by remember { mutableStateOf(false) }
 
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -211,6 +223,7 @@ private fun HairaApp(
         if (commandReply != null) {
             messages = (messages + ChatMessage(commandReply, false)).takeLast(300)
             saveMessages(messages)
+            if (autoSpeak) speak(commandReply)
             return
         }
         messages = (messages + ChatMessage("", false)).takeLast(300)
@@ -222,6 +235,7 @@ private fun HairaApp(
             busy = false
             val reply = result.getOrElse { error -> "AI connection error: ${error.message ?: "Unknown error"}" }
             gatewayStatus = if (result.isSuccess) "Gateway reachable • live chat response received" else "Chat request failed: ${result.exceptionOrNull()?.message ?: "Unknown error"}"
+            if (result.isSuccess && autoSpeak) speak(reply)
             val last = messages.lastOrNull()
             if (last != null && !last.fromUser) {
                 messages = messages.dropLast(1) + last.copy(text = reply)
@@ -269,6 +283,8 @@ private fun HairaApp(
                         config = gatewayConfig,
                         status = gatewayStatus,
                         testing = gatewayBusy,
+                        autoSpeak = autoSpeak,
+                        onAutoSpeakChange = { enabled -> autoSpeak = enabled; saveAutoSpeak(enabled) },
                         onConfigChange = { gatewayConfig = it },
                         onSave = {
                             saveGatewayConfig(gatewayConfig)
@@ -608,6 +624,8 @@ private fun SettingsScreen(
     config: GatewayConfig,
     status: String,
     testing: Boolean,
+    autoSpeak: Boolean,
+    onAutoSpeakChange: (Boolean) -> Unit,
     onConfigChange: (GatewayConfig) -> Unit,
     onSave: () -> Unit,
     onTest: () -> Unit,
@@ -674,8 +692,17 @@ private fun SettingsScreen(
         }
         SettingRow("Conversation storage", "Last 300 messages on this device")
         SettingRow("Gateway security", "API key encrypted with Android Keystore")
-        SettingRow("Voice output", "Android TextToSpeech")
-        SettingRow("Voice input", "Android speech recognizer; internet may be required")
+        Surface(color = Panel, shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Speak AI replies automatically", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Uses the phone's installed text-to-speech voice", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+                }
+                Switch(checked = autoSpeak, onCheckedChange = onAutoSpeakChange)
+            }
+        }
+        SettingRow("Voice output", "Android TextToSpeech • adjustable speech rate and pitch")
+        SettingRow("Voice input", "Android speech recognizer • offline preferred when supported; availability varies")
         SettingRow("Phone commands", "Open YouTube, Android Settings and Camera; reminders open Calendar form")
         SettingRow("Image understanding", "Not included in this text-chat connection yet")
         SettingRow("Saved messages", messageCount.toString())
