@@ -1,7 +1,7 @@
 name: Build HAIRA Android APK
 on:
   push:
-    branches: [ "main", "feature/haira-part1-core-v0.6.0", "feature/haira-part2-workstation-v0.7.0", "feature/haira-part3-self-setup-v0.8.0" ]
+    branches: [ "main", "feature/haira-part1-core-v0.6.0", "feature/haira-part2-workstation-v0.7.0", "feature/haira-part3-self-setup-v0.8.0", "feature/haira-part4-task-engine-v0.9.0" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
@@ -32,6 +32,6 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v7
         with:
-          name: HAIRA-debug-APK-v0.8.0-Part3
+          name: HAIRA-debug-APK-v0.9.0-Part4
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
