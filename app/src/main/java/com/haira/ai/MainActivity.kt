@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,19 +55,20 @@ private val Panel2 = Color(0xFF122437)
 private val Cyan = Color(0xFF55E6F2)
 private val Muted = Color(0xFF8CA4B8)
 private val Gold = Color(0xFFD7B56D)
-private const val HAIRA_MODEL_FILE = "Qwen3-0.6B.litertlm"
-private const val HAIRA_MODEL_URL = "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/Qwen3-0.6B.litertlm"
-private const val HAIRA_MODEL_MIN_BYTES = 500_000_000L
 
 class MainActivity : ComponentActivity() {
     private var tts: TextToSpeech? = null
     private var ttsReady = false
     private lateinit var localAi: LocalAiEngine
-    private val modelFile: File get() = File(getExternalFilesDir(null), HAIRA_MODEL_FILE)
+    private lateinit var gatewayClient: GatewayAiClient
+    private lateinit var secureKeyStore: SecureKeyStore
+    private val modelFile: File get() = File(getExternalFilesDir(null), "Qwen3-0.6B.litertlm")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         localAi = LocalAiEngine(this)
+        gatewayClient = GatewayAiClient()
+        secureKeyStore = SecureKeyStore(this)
         tts = TextToSpeech(this) { status ->
             ttsReady = status == TextToSpeech.SUCCESS
             if (ttsReady) {
@@ -82,36 +84,31 @@ class MainActivity : ComponentActivity() {
                 saveMessages = ::saveMessages,
                 speak = ::speakReply,
                 clearMessages = ::clearMessages,
-                modelExists = ::modelExists,
-                downloadModel = ::downloadModel,
-                loadModel = ::loadModel,
-                sendPrompt = { prompt, chunk, done, error -> localAi.send(prompt, chunk, done, error) },
+                gatewayClient = gatewayClient,
+                loadGatewayConfig = ::loadGatewayConfig,
+                saveGatewayConfig = ::saveGatewayConfig,
                 handleCommand = ::handleCommand
             )
         }
     }
 
-    private fun modelExists(): Boolean = modelFile.exists() && modelFile.length() >= HAIRA_MODEL_MIN_BYTES
-
-    private fun downloadModel() {
-        try {
-            val request = DownloadManager.Request(Uri.parse(HAIRA_MODEL_URL))
-                .setTitle("HAIRA local AI model")
-                .setDescription("Downloading Qwen3 0.6B model (about 586 MB)")
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                .setAllowedOverMetered(false)
-                .setAllowedOverRoaming(false)
-                .setDestinationInExternalFilesDir(this, null, HAIRA_MODEL_FILE)
-            (getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
-        } catch (_: Exception) { }
+    private fun loadGatewayConfig(): GatewayConfig {
+        val prefs = getSharedPreferences("haira_gateway", MODE_PRIVATE)
+        return GatewayConfig(
+            provider = prefs.getString("provider", "FreeLLMAPI") ?: "FreeLLMAPI",
+            baseUrl = prefs.getString("base_url", "http://127.0.0.1:3001/v1") ?: "http://127.0.0.1:3001/v1",
+            model = prefs.getString("model", "auto") ?: "auto",
+            apiKey = secureKeyStore.readApiKey()
+        )
     }
 
-    private fun loadModel(onReady: () -> Unit, onError: (String) -> Unit) {
-        if (!modelExists()) {
-            onError("Model file is missing or incomplete. Download it first.")
-            return
-        }
-        localAi.load(modelFile.absolutePath, onReady, onError)
+    private fun saveGatewayConfig(config: GatewayConfig) {
+        getSharedPreferences("haira_gateway", MODE_PRIVATE).edit()
+            .putString("provider", config.provider)
+            .putString("base_url", config.baseUrl.trim().trimEnd('/'))
+            .putString("model", config.model.trim())
+            .apply()
+        secureKeyStore.saveApiKey(config.apiKey)
     }
 
     private fun handleCommand(raw: String): String? {
@@ -177,6 +174,7 @@ class MainActivity : ComponentActivity() {
         tts?.shutdown()
         tts = null
         if (::localAi.isInitialized) localAi.close()
+        if (::gatewayClient.isInitialized) gatewayClient.close()
         super.onDestroy()
     }
 }
@@ -187,19 +185,18 @@ private fun HairaApp(
     saveMessages: (List<ChatMessage>) -> Unit,
     speak: (String) -> Unit,
     clearMessages: () -> Unit,
-    modelExists: () -> Boolean,
-    downloadModel: () -> Unit,
-    loadModel: ((() -> Unit), ((String) -> Unit)) -> Unit,
-    sendPrompt: (String, (String) -> Unit, () -> Unit, (String) -> Unit) -> Unit,
+    gatewayClient: GatewayAiClient,
+    loadGatewayConfig: () -> GatewayConfig,
+    saveGatewayConfig: (GatewayConfig) -> Unit,
     handleCommand: (String) -> String?
 ) {
     var messages by remember { mutableStateOf(loadMessages()) }
     var selectedTab by remember { mutableStateOf("HOME") }
     var draft by remember { mutableStateOf("") }
     var search by remember { mutableStateOf("") }
-    var modelReady by remember { mutableStateOf(modelExists()) }
-    var aiLoaded by remember { mutableStateOf(false) }
-    var modelStatus by remember { mutableStateOf(if (modelReady) "Model file found on this device" else "Model not downloaded") }
+    var gatewayConfig by remember { mutableStateOf(loadGatewayConfig()) }
+    var gatewayStatus by remember { mutableStateOf("Not tested yet") }
+    var gatewayBusy by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
 
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -222,34 +219,21 @@ private fun HairaApp(
             saveMessages(messages)
             return
         }
-        if (!aiLoaded) {
-            val reply = if (modelExists()) "The local model is downloaded but not loaded. Open Settings and tap Load Model."
-                else "Local AI is not set up yet. Open Settings → AI Model and download the optional model. No API key is required."
-            messages = (messages + ChatMessage(reply, false)).takeLast(300)
-            saveMessages(messages)
-            return
-        }
+        if (gatewayBusy || busy) return
         messages = (messages + ChatMessage("", false)).takeLast(300)
         busy = true
-        sendPrompt(
-            text,
-            { chunk ->
-                val last = messages.lastOrNull()
-                if (last != null && !last.fromUser) {
-                    messages = messages.dropLast(1) + last.copy(text = last.text + chunk)
-                    saveMessages(messages)
-                }
-            },
-            { busy = false },
-            { error ->
-                busy = false
-                val last = messages.lastOrNull()
-                if (last != null && !last.fromUser) {
-                    messages = messages.dropLast(1) + last.copy(text = "AI error: $error")
-                    saveMessages(messages)
-                }
+        val history = messages.dropLast(1).takeLast(24).map {
+            (if (it.fromUser) "user" else "assistant") to it.text
+        } + ("user" to text)
+        gatewayClient.send(gatewayConfig, history) { result ->
+            busy = false
+            val reply = result.getOrElse { error -> "AI connection error: ${error.message ?: "Unknown error"}" }
+            val last = messages.lastOrNull()
+            if (last != null && !last.fromUser) {
+                messages = messages.dropLast(1) + last.copy(text = reply)
+                saveMessages(messages)
             }
-        )
+        }
     }
 
     MaterialTheme(colorScheme = darkColorScheme(primary = Cyan, background = Bg, surface = Panel)) {
@@ -276,7 +260,7 @@ private fun HairaApp(
             ) {
                 Header()
                 when (selectedTab) {
-                    "HOME" -> HomeScreen(messages.size, aiLoaded, modelReady, onChat = { selectedTab = "CHAT" })
+                    "HOME" -> HomeScreen(messages.size, gatewayStatus, onChat = { selectedTab = "CHAT" })
                     "CHAT" -> ChatScreen(messages, draft, { draft = it }, { sendMessage() }, {
                         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -287,21 +271,26 @@ private fun HairaApp(
                     }, speak)
                     "MEMORY" -> MemoryScreen(messages, search, { search = it })
                     else -> SettingsScreen(
-                        messages.size, modelReady, aiLoaded, modelStatus,
-                        onRefresh = {
-                            modelReady = modelExists()
-                            modelStatus = if (modelReady) "Model file found on this device" else "Model not downloaded or download incomplete"
+                        messageCount = messages.size,
+                        config = gatewayConfig,
+                        status = gatewayStatus,
+                        testing = gatewayBusy,
+                        onConfigChange = { gatewayConfig = it },
+                        onSave = {
+                            saveGatewayConfig(gatewayConfig)
+                            gatewayStatus = "Settings saved. Test the connection."
                         },
-                        onDownload = {
-                            downloadModel()
-                            modelStatus = "Download started. Android will notify when it finishes."
-                        },
-                        onLoad = {
-                            modelStatus = "Loading local model..."
-                            loadModel(
-                                { aiLoaded = true; modelStatus = "Local AI model loaded and ready" },
-                                { error -> aiLoaded = false; modelStatus = "Load failed: $error" }
-                            )
+                        onTest = {
+                            if (gatewayBusy) return@SettingsScreen
+                            gatewayBusy = true
+                            gatewayStatus = "Checking gateway..."
+                            gatewayClient.testConnection(gatewayConfig) { result ->
+                                gatewayBusy = false
+                                gatewayStatus = result.fold(
+                                    { models -> if (models.isEmpty()) "Connected, but no models were listed" else "Connected • ${models.size} models found: ${models.take(4).joinToString()}" },
+                                    { error -> "Connection failed: ${error.message ?: "Unknown error"}" }
+                                )
+                            }
                         },
                         onClear = { messages = emptyList(); clearMessages() }
                     )
@@ -319,14 +308,15 @@ private fun Header() {
             Text("PERSONAL INTELLIGENCE SYSTEM", color = Cyan, fontSize = 9.sp, letterSpacing = 2.sp)
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text("LOCAL-FIRST", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-            Text("BUILD 0.4.0", color = Muted, fontSize = 9.sp)
+            Text("GATEWAY AI", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text("BUILD 0.5.0", color = Muted, fontSize = 9.sp)
         }
     }
 }
 
 @Composable
-private fun HomeScreen(messageCount: Int, aiLoaded: Boolean, modelReady: Boolean, onChat: () -> Unit) {
+private fun HomeScreen(messageCount: Int, gatewayStatus: String, onChat: () -> Unit) {
+    val connected = gatewayStatus.startsWith("Connected")
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 18.dp),
@@ -338,8 +328,8 @@ private fun HomeScreen(messageCount: Int, aiLoaded: Boolean, modelReady: Boolean
                     Text("Good to see you, Sir ji.", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
                     Text("Your personal command space.", color = Muted, fontSize = 12.sp)
                 }
-                Surface(color = Color(0xFF17372F), shape = RoundedCornerShape(20.dp)) {
-                    Text("● SYSTEM READY", color = Color(0xFF8BE0B0), fontSize = 9.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
+                Surface(color = if (connected) Color(0xFF17372F) else Color(0xFF382B1A), shape = RoundedCornerShape(20.dp)) {
+                    Text(if (connected) "● GATEWAY ONLINE" else "● SETUP NEEDED", color = if (connected) Color(0xFF8BE0B0) else Color(0xFFFFC477), fontSize = 9.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
                 }
             }
         }
@@ -348,12 +338,12 @@ private fun HomeScreen(messageCount: Int, aiLoaded: Boolean, modelReady: Boolean
             Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("AI CORE", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                        Text("REMOTE AI CORE", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                         Spacer(Modifier.weight(1f))
-                        Text(if (aiLoaded) "ONLINE" else if (modelReady) "DOWNLOADED" else "SETUP REQUIRED", color = if (aiLoaded) Color(0xFF8BE0B0) else Color(0xFFFFC477), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(if (connected) "ONLINE" else "NOT CONNECTED", color = if (connected) Color(0xFF8BE0B0) else Color(0xFFFFC477), fontSize = 9.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text(when { aiLoaded -> "The local language model is loaded and generating replies on-device."; modelReady -> "The model file is ready. Load it from Settings to start offline AI."; else -> "Download the optional local model from Settings. No API key is required." }, color = Color(0xFFC0CFDA), fontSize = 12.sp, lineHeight = 18.sp)
+                    Text(gatewayStatus, color = Color(0xFFC0CFDA), fontSize = 12.sp, lineHeight = 18.sp)
                     Spacer(Modifier.height(12.dp))
                     OutlinedButton(onClick = onChat, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                         Text("OPEN HAIRA CHAT  →", color = Cyan, letterSpacing = 1.sp)
@@ -370,7 +360,7 @@ private fun HomeScreen(messageCount: Int, aiLoaded: Boolean, modelReady: Boolean
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 StatusCard("VOICE INPUT", "BASIC", "Android recognizer", Modifier.weight(1f))
-                StatusCard("AI REASONING", if (aiLoaded) "READY" else if (modelReady) "LOAD" else "SETUP", "local model", Modifier.weight(1f))
+                StatusCard("AI ROUTING", if (connected) "READY" else "SETUP", "gateway connection", Modifier.weight(1f))
             }
         }
         item {
@@ -381,7 +371,7 @@ private fun HomeScreen(messageCount: Int, aiLoaded: Boolean, modelReady: Boolean
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text("Start a conversation", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Text("Text chat and Android speech input", color = Muted, fontSize = 11.sp)
+                        Text("Remote AI chat and Android speech input", color = Muted, fontSize = 11.sp)
                     }
                     Text("›", color = Cyan, fontSize = 26.sp)
                 }
@@ -578,39 +568,79 @@ private fun MemoryScreen(messages: List<ChatMessage>, search: String, onSearch: 
 @Composable
 private fun SettingsScreen(
     messageCount: Int,
-    modelReady: Boolean,
-    aiLoaded: Boolean,
-    modelStatus: String,
-    onRefresh: () -> Unit,
-    onDownload: () -> Unit,
-    onLoad: () -> Unit,
+    config: GatewayConfig,
+    status: String,
+    testing: Boolean,
+    onConfigChange: (GatewayConfig) -> Unit,
+    onSave: () -> Unit,
+    onTest: () -> Unit,
     onClear: () -> Unit
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("SYSTEM SETTINGS", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-        Text("Privacy and build information", color = Muted, fontSize = 11.sp)
+        Text("Remote AI gateway connection", color = Muted, fontSize = 11.sp)
         Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(15.dp)) {
-                Text("ON-DEVICE AI MODEL", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                Text("Qwen3 0.6B • about 586 MB • local inference • no API key", color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
-                Text(modelStatus, color = if (aiLoaded) Color(0xFF8BE0B0) else Color(0xFFFFC477), fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
-                Text("The model is a separate download, not part of the APK. Download only on Wi-Fi if you want to save mobile data. A compact model may be less capable than cloud AI.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 7.dp, bottom = 12.dp))
-                Button(onClick = onDownload, enabled = !modelReady, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
-                    Text(if (modelReady) "MODEL FILE FOUND" else "DOWNLOAD LOCAL MODEL")
+            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("SELECT GATEWAY", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    listOf("FreeLLMAPI", "OmniRoute", "Custom").forEach { provider ->
+                        val selected = config.provider == provider
+                        if (selected) Button(onClick = {}, enabled = false, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp)) {
+                            Text(provider, fontSize = 10.sp)
+                        } else OutlinedButton(
+                            onClick = {
+                                val next = when (provider) {
+                                    "FreeLLMAPI" -> config.copy(provider = provider, baseUrl = "http://127.0.0.1:3001/v1", model = "auto")
+                                    "OmniRoute" -> config.copy(provider = provider, baseUrl = "http://127.0.0.1:20128/v1", model = "auto")
+                                    else -> config.copy(provider = provider)
+                                }
+                                onConfigChange(next)
+                            },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp)
+                        ) { Text(provider, fontSize = 10.sp) }
+                    }
                 }
-                OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
-                    Text("CHECK DOWNLOAD")
+                OutlinedTextField(
+                    value = config.baseUrl,
+                    onValueChange = { onConfigChange(config.copy(baseUrl = it)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Gateway Base URL") },
+                    placeholder = { Text("https://your-server.example/v1") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = config.model,
+                    onValueChange = { onConfigChange(config.copy(model = it)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Model ID") },
+                    placeholder = { Text("auto or exact model ID") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = config.apiKey,
+                    onValueChange = { onConfigChange(config.copy(apiKey = it)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Gateway API key (optional for keyless setups)") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true
+                )
+                Text("FreeLLMAPI normally needs its unified key. OmniRoute can allow keyless local routing when its server is configured that way. Provider credentials, if required, are configured in the gateway dashboard — not here.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                Text("For same-phone Termux setups, 127.0.0.1 points to this phone. For a gateway running on another device, enter that device's reachable LAN address. Use HTTPS for remote servers; plain HTTP can expose your key on an untrusted network.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                Text(status, color = if (status.startsWith("Connected") || status.startsWith("Settings saved")) Color(0xFF8BE0B0) else Color(0xFFFFC477), fontSize = 10.sp, lineHeight = 15.sp)
+                Button(onClick = onSave, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
+                    Text("SAVE GATEWAY SETTINGS")
                 }
-                OutlinedButton(onClick = onLoad, enabled = modelReady && !aiLoaded, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
-                    Text(if (aiLoaded) "AI MODEL LOADED" else "LOAD MODEL INTO MEMORY")
+                OutlinedButton(onClick = onTest, enabled = !testing, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
+                    Text(if (testing) "TESTING CONNECTION..." else "TEST CONNECTION / LOAD MODELS")
                 }
             }
         }
         SettingRow("Conversation storage", "Last 300 messages on this device")
+        SettingRow("Gateway security", "API key encrypted with Android Keystore")
         SettingRow("Voice output", "Android TextToSpeech")
         SettingRow("Voice input", "Android speech recognizer; internet may be required")
         SettingRow("Phone commands", "Open YouTube, Android Settings and Camera; reminders open Calendar form")
-        SettingRow("Image understanding", "Not included in this text-only model")
+        SettingRow("Image understanding", "Not included in this text-chat connection yet")
         SettingRow("Saved messages", messageCount.toString())
         Spacer(Modifier.height(8.dp))
         Surface(color = Color(0xFF29191B), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
@@ -622,7 +652,7 @@ private fun SettingsScreen(
                 }
             }
         }
-        Text("HAIRA AI • ANDROID BUILD 0.4.0", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
+        Text("HAIRA AI • ANDROID BUILD 0.5.0", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
     }
 }
 
