@@ -16,6 +16,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val WorkBg = Color(0xFF050912)
 private val WorkPanel = Color(0xFF0D1826)
@@ -36,6 +39,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
     var newTask by remember { mutableStateOf("") }
     var tasks by remember { mutableStateOf(emptyList<WorkTask>()) }
     var status by remember { mutableStateOf("Private local workspace ready.") }
+    val taskScope = rememberCoroutineScope()
 
     fun refresh() {
         files = workspace.listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() } ?: emptyList()
@@ -189,16 +193,23 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
                                         val dir = File(workspace, "tasks")
                                         val f = File(dir, task.id).takeIf { it.isFile }
                                         if (f != null) {
-                                            f.writeText(task.title + "\nRUNNING")
-                                            val result = onExecuteTask(task.title)
-                                            if (result == null) {
-                                                f.writeText(task.title + "\nFAILED")
-                                                status = "Unsupported command. Use one of the listed local tool commands."
-                                            } else {
-                                                f.writeText(task.title + "\nDONE")
-                                                status = result
+                                            tasks = tasks.map { if (it.id == task.id) it.copy(state = "RUNNING") else it }
+                                            taskScope.launch {
+                                                val execution = withContext(Dispatchers.IO) {
+                                                    runCatching {
+                                                        f.writeText(task.title + "\nRUNNING")
+                                                        onExecuteTask(task.title)
+                                                    }
+                                                }
+                                                withContext(Dispatchers.IO) {
+                                                    f.writeText(task.title + "\n" + if (execution.getOrNull() == null) "FAILED" else "DONE")
+                                                }
+                                                status = execution.fold(
+                                                    onSuccess = { it ?: "Unsupported command. Use one of the listed local tool commands." },
+                                                    onFailure = { "Task failed: " + (it.message ?: "Unknown error") }
+                                                )
+                                                refresh()
                                             }
-                                            refresh()
                                         }
                                     }) { Text("RUN", color = WorkCyan, fontSize = 8.sp) }
                                 }
