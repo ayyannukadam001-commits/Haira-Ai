@@ -67,7 +67,9 @@ class MainActivity : ComponentActivity() {
         tts = TextToSpeech(this) { status ->
             ttsReady = status == TextToSpeech.SUCCESS
             if (ttsReady) {
-                tts?.setSpeechRate(0.94f)\n                tts?.setPitch(1.02f)\n                val result = tts?.setLanguage(Locale("en", "IN"))
+                tts?.setSpeechRate(0.94f)
+                tts?.setPitch(1.02f)
+                val result = tts?.setLanguage(Locale("en", "IN"))
                 if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                     tts?.setLanguage(Locale.getDefault())
                 }
@@ -272,7 +274,9 @@ private fun HairaApp(
                     "CHAT" -> ChatScreen(messages, draft, { draft = it }, { sendMessage() }, {
                         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN")\n                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "en-IN")\n                            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "en-IN")
+                            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
                             putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to HAIRA")
                         }
                         try { speechLauncher.launch(intent) } catch (_: Exception) { }
