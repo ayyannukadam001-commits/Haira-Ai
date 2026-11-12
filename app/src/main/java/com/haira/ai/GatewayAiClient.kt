@@ -99,6 +99,10 @@ class GatewayAiClient {
         require(base.startsWith("https://") || base.startsWith("http://")) {
             "Server URL must start with http:// or https://."
         }
+        val parsedUrl = URL(base)
+        if (parsedUrl.protocol == "http" && !isPrivateOrLoopbackHost(parsedUrl.host)) {
+            throw IllegalArgumentException("Use HTTPS for remote gateway servers. HTTP is allowed only for localhost or a private LAN address.")
+        }
         val connection = (URL(base + path).openConnection() as HttpURLConnection).apply {
             requestMethod = method
             connectTimeout = 12_000
@@ -109,6 +113,16 @@ class GatewayAiClient {
             }
         }
         return connection
+    }
+
+    private fun isPrivateOrLoopbackHost(rawHost: String): Boolean {
+        val host = rawHost.removePrefix("[").removeSuffix("]").lowercase()
+        if (host == "localhost" || host == "::1" || host.endsWith(".local")) return true
+        val octets = host.split(".").mapNotNull { it.toIntOrNull() }
+        if (octets.size != 4 || octets.any { it !in 0..255 }) return false
+        val a = octets[0]
+        val b = octets[1]
+        return a == 10 || a == 127 || (a == 192 && b == 168) || (a == 172 && b in 16..31)
     }
 
     private fun readBody(connection: HttpURLConnection, code: Int): String {
