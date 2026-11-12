@@ -20,7 +20,8 @@ class HairaToolRegistry(context: Context) {
     val tools = listOf(
         HairaToolDescriptor("workspace.list", "Workspace File List", "Lists files in HAIRA's private workspace.", "list workspace files"),
         HairaToolDescriptor("workspace.note.create", "Create Note", "Creates a Markdown note inside the private workspace.", "create note: project ideas"),
-        HairaToolDescriptor("workspace.search", "Workspace Search", "Searches text files inside the private workspace.", "search workspace: meeting")
+        HairaToolDescriptor("workspace.search", "Workspace Search", "Searches text files inside the private workspace.", "search workspace: meeting"),
+        HairaToolDescriptor("project.scaffold", "Project Scaffold", "Creates a safe starter project folder with a README and task plan.", "create project: My First App")
     )
 
     fun execute(rawCommand: String): String? {
@@ -30,6 +31,7 @@ class HairaToolRegistry(context: Context) {
             normalized == "list workspace files" || normalized == "workspace files dikhao" -> listWorkspaceFiles()
             normalized.startsWith("create note:") -> createNote(command.substringAfter(':').trim())
             normalized.startsWith("search workspace:") -> searchWorkspace(command.substringAfter(':').trim())
+            normalized.startsWith("create project:") -> createProject(command.substringAfter(':').trim())
             else -> null
         }
     }
@@ -59,6 +61,17 @@ class HairaToolRegistry(context: Context) {
         return "Note create ho gayi: ${file.name}"
     }
 
+    private fun createProject(title: String): String {
+        if (title.isBlank()) return "Project name missing hai. Example: create project: My First App"
+        val safeName = title.replace(Regex("[^A-Za-z0-9 _-]"), "").trim().take(60).ifBlank { "New Project" }
+        val folderName = safeName.lowercase().replace(Regex("\\s+"), "-").trim('-').ifBlank { "new-project" }
+        val projectDir = File(workspace, folderName)
+        if (projectDir.exists()) return "Project folder already exists: $folderName"
+        if (!projectDir.mkdirs()) return "Project folder create nahi ho paya."
+        File(projectDir, "README.md").writeText("# $safeName\\n\\nCreated by HAIRA AI local project scaffold.\\n\\n## Next steps\\n- Define requirements\\n- Implement features\\n- Add tests\\n")
+        File(projectDir, "TASKS.md").writeText("# $safeName — Task Plan\\n\\n- [ ] Confirm requirements\\n- [ ] Create project structure\\n- [ ] Implement first feature\\n- [ ] Test and review\\n")
+        return "Starter project create ho gaya: $folderName (README.md, TASKS.md). Ye scaffold hai, complete app nahi."
+    }
     private fun searchWorkspace(query: String): String {
         if (query.isBlank()) return "Search word missing hai. Example: search workspace: meeting"
         val needle = query.take(100)
