@@ -484,7 +484,9 @@ private fun HairaApp(
                                 } finally {
                                     modelBusy = false
                                 }
-                            }
+                        },
+                        {
+                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(HairaIntelligenceCatalog.nanoLmGgufPage))) }
                         }
                     )
                     else -> SettingsScreen(messages.size, memories.size, autoSpeak, { enabled ->
@@ -750,7 +752,7 @@ private fun MemoryScreen(messages: List<HairaMessage>, memories: List<HairaMemor
 }
 
 @Composable
-private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: String, onImport: () -> Unit, onOpenGemma: () -> Unit, onDownloadGemma: () -> Unit) {
+private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: String, onImport: () -> Unit, onOpenGemma: () -> Unit, onDownloadGemma: () -> Unit, onOpenNano: () -> Unit) {
     var gemmaTermsAccepted by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("LOCAL MODEL MANAGER", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
@@ -793,7 +795,7 @@ private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: St
         }
         Text("SECONDARY MODEL • NANOLM 0.3B", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         Text("Q4_K_M GGUF • approximately 274 MB • GPL-3.0. Its model file is identified, but this build does not yet contain a GGUF inference engine, so it cannot be loaded into chat yet.", color = Muted, fontSize = 8.sp, lineHeight = 13.sp)
-        OutlinedButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(HairaIntelligenceCatalog.nanoLmGgufPage))) } }, modifier = Modifier.fillMaxWidth()) { Text("VIEW NANOLM MODEL FILES", color = Cyan, fontSize = 9.sp) }
+        OutlinedButton(onClick = onOpenNano, modifier = Modifier.fillMaxWidth()) { Text("VIEW NANOLM MODEL FILES", color = Cyan, fontSize = 9.sp) }
         Text("EXTERNAL MODEL ACCESS DISCOVERY", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
         Text("HAIRA will classify provider access only after checking official documentation and a documented safe availability endpoint. Unknown access is never reported as no-key.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
         HairaIntelligenceCatalog.externalAccessStates.forEach { state ->
