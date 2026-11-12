@@ -20,6 +20,7 @@ data class HairaModelCandidate(
 
 object HairaIntelligenceCatalog {
     const val gemmaOfficialModelPage = "https://huggingface.co/litert-community/Gemma3-1B-IT"
+    const val nanoLmGgufPage = "https://huggingface.co/mradermacher/NanoLM-0.3B-Instruct-v1.1-GGUF"
 
     val localCandidates = listOf(
         HairaModelCandidate(
@@ -41,8 +42,8 @@ object HairaIntelligenceCatalog {
             format = "GGUF",
             intendedRole = "Secondary lightweight chat model",
             runtime = "Requires GGUF runtime; not compatible with current LiteRT engine",
-            status = "CANDIDATE — GPL-3.0 + runtime review required",
-            limitation = "Model card declares GPL-3.0. Needs a separate GGUF-capable Android runtime, exact artifact/checksum, distribution-license review and device tests."
+            status = "GGUF ARTIFACT VERIFIED — ANDROID RUNTIME NOT YET INTEGRATED",
+            limitation = "Q4_K_M GGUF is listed at about 274 MB on the quantized model page. The model is GPL-3.0. HAIRA still needs a native GGUF runtime build, license review, checksum validation and Redmi device testing before it can load this model in chat."
         ),
         HairaModelCandidate(
             id = "qwen3-06b-litert",
