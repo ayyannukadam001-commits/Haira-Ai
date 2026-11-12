@@ -228,7 +228,62 @@ private fun HairaApp(
         if (text.isEmpty() || busy) return
         draft = ""
         addMessage(text, true)
-        val localCommand = handleCommand(text)
+        val normalizedCommand = text.lowercase(Locale.ROOT).trim().replace(Regex("\\s+"), " ")
+        val appCommandReply: String? = when {
+            normalizedCommand in setOf("activate work mode", "open work mode", "work mode", "landscape mode", "activate landscape mode", "switch to landscape", "serious mode", "work mode kholo", "landscape mode on karo", "landscape kholo", "work mode chalu karo", "काम मोड") -> {
+                seriousMode = true
+                "Work Mode activate ho raha hai. HAIRA landscape dashboard khul raha hai."
+            }
+            normalizedCommand in setOf("normal mode", "exit work mode", "close work mode", "portrait mode", "switch to portrait", "work mode band karo", "normal mode chalu karo", "portrait kholo") -> {
+                seriousMode = false
+                "Normal Mode activate ho gaya."
+            }
+            normalizedCommand in setOf("open chat", "chat kholo", "chat open karo") -> {
+                seriousMode = false; tab = "CHAT"; "Chat open kar diya."
+            }
+            normalizedCommand in setOf("open home", "home kholo", "home open karo") -> {
+                seriousMode = false; tab = "HOME"; "Home dashboard open kar diya."
+            }
+            normalizedCommand in setOf("open memory", "memory kholo", "memory open karo", "open memory vault") -> {
+                seriousMode = false; tab = "MEMORY"; "Memory Vault open kar diya."
+            }
+            normalizedCommand in setOf("open models", "models kholo", "model manager kholo", "open model manager") -> {
+                seriousMode = false; tab = "MODELS"; "Local Model Manager open kar diya."
+            }
+            normalizedCommand in setOf("open settings", "settings kholo", "settings open karo") -> {
+                seriousMode = false; tab = "SETTINGS"; "Settings open kar di."
+            }
+            normalizedCommand in setOf("voice on", "enable voice", "auto voice on", "voice chalu karo", "jawab bolkar do") -> {
+                autoSpeak = true
+                context.getSharedPreferences("haira_voice", Context.MODE_PRIVATE).edit().putBoolean("auto_speak", true).apply()
+                "Automatic voice replies ON. HAIRA replies ko phone ke TTS voice mein bolega."
+            }
+            normalizedCommand in setOf("voice off", "disable voice", "auto voice off", "voice band karo", "sirf text mein jawab do") -> {
+                autoSpeak = false
+                context.getSharedPreferences("haira_voice", Context.MODE_PRIVATE).edit().putBoolean("auto_speak", false).apply()
+                "Automatic voice replies OFF. Ab replies text mein aayenge."
+            }
+            normalizedCommand in setOf("help", "commands", "show commands", "command list", "commands dikhao", "haira commands") -> {
+                "HAIRA commands:\\n• Activate Work Mode / Landscape Mode\\n• Normal Mode / Exit Work Mode\\n• Open Home, Chat, Memory, Models, Settings\\n• Voice On / Voice Off\\n• Save memory: your note\\n• Search memory: keyword\\n• Create note: title\\n• Create project: name\\n• List workspace files\\n• Open YouTube / Open Camera / Open Settings"
+            }
+            normalizedCommand.startsWith("save memory:") || normalizedCommand.startsWith("remember this:") || normalizedCommand.startsWith("yaad rakho:") -> {
+                val note = text.substringAfter(':').trim()
+                if (note.isBlank()) "Memory text missing hai. Example: Save memory: My project name is HAIRA."
+                else {
+                    memories.add(HairaMemory(System.currentTimeMillis(), note))
+                    memoryStore.saveMemories(memories.toList())
+                    "Memory Vault mein save kar diya: $note"
+                }
+            }
+            normalizedCommand.startsWith("search memory:") || normalizedCommand.startsWith("memory search:") -> {
+                val query = text.substringAfter(':').trim()
+                seriousMode = false; tab = "MEMORY"; search = query
+                if (query.isBlank()) "Search keyword missing hai. Example: Search memory: project"
+                else "Memory Vault mein '$query' search kar raha hoon."
+            }
+            else -> null
+        }
+        val localCommand = appCommandReply ?: handleCommand(text)
         if (localCommand != null) {
             addMessage(localCommand, false)
             if (autoSpeak) speak(localCommand)
