@@ -75,7 +75,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(section, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                    Text("HAIRA AI • LOCAL-FIRST WORKSTATION • v0.9.0", color = WorkMuted, fontSize = 8.sp)
+                    Text("HAIRA AI • LOCAL-FIRST WORKSTATION • v1.0.0", color = WorkMuted, fontSize = 8.sp)
                 }
                 Text(if (modelLoaded) "MODEL READY" else "MODEL NOT LOADED", color = if (modelLoaded) Color(0xFF8BE0B0) else WorkGold, fontSize = 8.sp)
             }
@@ -96,12 +96,12 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
                     Panel("TASK TRACKER", "Tracks queued and completed work. It does not claim background execution or fabricated progress.") { OutlinedButton(onClick = { section = "TASK QUEUE" }) { Text("OPEN QUEUE", fontSize = 9.sp) } }
                 }
                 "SELF SETUP" -> {
-                    Panel("AUTOMATIC MODEL SETUP", "HAIRA can download a curated LiteRT-LM model, verify its SHA-256 checksum, store it privately and load it into the local AI engine.") {
+                    Panel("AUTOMATIC MODEL SETUP", "HAIRA includes its starter LiteRT-LM model inside this APK. On first launch it copies the model into private storage, verifies SHA-256 and loads it automatically.") {
                         Text("STARTER MODEL", color = WorkCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         Text(HairaModelCatalog.starter.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         Text(HairaModelCatalog.starter.description, color = WorkMuted, fontSize = 9.sp)
                         Text("Source: ${HairaModelCatalog.starter.sourceLabel} • License: ${HairaModelCatalog.starter.license}", color = WorkMuted, fontSize = 8.sp)
-                        Text("Download uses unmetered Wi-Fi only and requires about 1.2 GB free storage. The model is downloaded only after you press the button.", color = WorkGold, fontSize = 8.sp)
+                        Text("The bundled model is installed automatically on first launch. Keep about 1.2 GB free storage for the private copy. Manual download remains available as a fallback.", color = WorkGold, fontSize = 8.sp)
                         if (modelBusy) {
                             LinearProgressIndicator(progress = downloadProgress, modifier = Modifier.fillMaxWidth())
                             Text("Setup in progress…", color = WorkCyan, fontSize = 9.sp)
