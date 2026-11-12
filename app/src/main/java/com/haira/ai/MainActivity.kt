@@ -264,7 +264,7 @@ private fun HairaApp(
                 "Automatic voice replies OFF. Ab replies text mein aayenge."
             }
             normalizedCommand in setOf("help", "commands", "show commands", "command list", "commands dikhao", "haira commands") -> {
-                "HAIRA commands:\\n• Activate Work Mode / Landscape Mode\\n• Normal Mode / Exit Work Mode\\n• Open Home, Chat, Memory, Models, Settings\\n• Voice On / Voice Off\\n• Save memory: your note\\n• Search memory: keyword\\n• Create note: title\\n• Create project: name\\n• List workspace files\\n• Open YouTube / Open Camera / Open Settings"
+                "HAIRA commands:\n• Activate Work Mode / Landscape Mode\n• Normal Mode / Exit Work Mode\n• Open Home, Chat, Memory, Models, Settings\n• Voice On / Voice Off\n• Save memory: your note\n• Search memory: keyword\n• Create note: title\n• Create project: name\n• List workspace files\n• Open YouTube / Open Camera / Open Settings"
             }
             normalizedCommand.startsWith("save memory:") || normalizedCommand.startsWith("remember this:") || normalizedCommand.startsWith("yaad rakho:") -> {
                 val note = text.substringAfter(':').trim()
