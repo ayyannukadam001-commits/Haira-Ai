@@ -25,13 +25,6 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.14.6"
-      - name: Download and verify bundled Qwen3 model
-        run: |
-          mkdir -p app/src/main/assets/models
-          curl --fail --location --retry 3 --retry-delay 2 \
-            "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/Qwen3-0.6B.litertlm" \
-            --output app/src/main/assets/models/Qwen3-0.6B.litertlm
-          echo "c5f39b4191926786c3e6668b62af4d6eb15248dfc7a5348252a9b406f33f2108  app/src/main/assets/models/Qwen3-0.6B.litertlm" | sha256sum --check
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
       - name: Verify APK exists
