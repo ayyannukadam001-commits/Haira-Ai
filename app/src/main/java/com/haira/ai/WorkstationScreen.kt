@@ -1,0 +1,196 @@
+package com.haira.ai
+
+import android.content.Context
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import java.io.File
+
+private val WorkBg = Color(0xFF050912)
+private val WorkPanel = Color(0xFF0D1826)
+private val WorkCyan = Color(0xFF55E6F2)
+private val WorkMuted = Color(0xFF8CA4B8)
+private val WorkGold = Color(0xFFD7B56D)
+
+@Composable
+fun WorkstationScreen(context: Context, modelLoaded: Boolean, modelStatus: String, onOpenModel: () -> Unit, onReturnNormal: () -> Unit) {
+    val workspace = remember { File(context.filesDir, "haira_workspace").apply { mkdirs() } }
+    var section by remember { mutableStateOf("OVERVIEW") }
+    var files by remember { mutableStateOf(emptyList<File>()) }
+    var selectedFile by remember { mutableStateOf<File?>(null) }
+    var editorText by remember { mutableStateOf("") }
+    var fileName by remember { mutableStateOf("untitled.kt") }
+    var newTask by remember { mutableStateOf("") }
+    var tasks by remember { mutableStateOf(emptyList<Pair<String, Boolean>>()) }
+    var status by remember { mutableStateOf("Private local workspace ready.") }
+
+    fun refresh() {
+        files = workspace.listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() } ?: emptyList()
+        tasks = File(workspace, "tasks").listFiles()?.filter { it.extension == "task" }?.mapNotNull { f ->
+            val lines = runCatching { f.readLines() }.getOrNull() ?: return@mapNotNull null
+            val title = lines.firstOrNull().orEmpty()
+            if (title.isBlank()) null else title to (lines.getOrNull(1) == "DONE")
+        } ?: emptyList()
+    }
+    LaunchedEffect(Unit) { refresh() }
+
+    Row(Modifier.fillMaxSize().background(WorkBg).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.width(150.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("HAIRA", color = WorkCyan, fontSize = 21.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+            Text("SERIOUS MODE", color = WorkGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            HorizontalDivider(color = WorkCyan.copy(alpha = 0.25f))
+            listOf("OVERVIEW", "FILES", "CODE", "RESEARCH", "TASK QUEUE", "STUDIOS").forEach { item ->
+                TextButton(onClick = { section = item }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(5.dp)) {
+                    Text((if (section == item) "▸ " else "") + item, color = if (section == item) WorkCyan else WorkMuted, fontSize = 9.sp)
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            OutlinedButton(onClick = onReturnNormal, modifier = Modifier.fillMaxWidth()) { Text("NORMAL MODE", fontSize = 9.sp) }
+            Text("PRIVATE LOCAL WORKSPACE", color = WorkMuted, fontSize = 7.sp)
+        }
+        Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(section, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text("HAIRA AI • LOCAL-FIRST WORKSTATION • v0.7.0", color = WorkMuted, fontSize = 8.sp)
+                }
+                Text(if (modelLoaded) "MODEL READY" else "MODEL NOT LOADED", color = if (modelLoaded) Color(0xFF8BE0B0) else WorkGold, fontSize = 8.sp)
+            }
+            when (section) {
+                "OVERVIEW" -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Metric("FILES", files.size.toString(), Modifier.weight(1f))
+                        Metric("OPEN TASKS", tasks.count { !it.second }.toString(), Modifier.weight(1f))
+                        Metric("DONE", tasks.count { it.second }.toString(), Modifier.weight(1f))
+                    }
+                    Panel("PROJECT WORKSPACE", "Create and edit real local project files. Files remain in HAIRA's private app storage.") {
+                        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Button(onClick = { section = "FILES" }) { Text("FILE MANAGER", fontSize = 9.sp) }
+                            OutlinedButton(onClick = { section = "CODE" }) { Text("CODE STUDIO", fontSize = 9.sp) }
+                        }
+                    }
+                    Panel("LOCAL AI ENGINE", modelStatus) { OutlinedButton(onClick = onOpenModel) { Text("MODEL MANAGER", fontSize = 9.sp) } }
+                    Panel("TASK TRACKER", "Tracks queued and completed work. It does not claim background execution or fabricated progress.") { OutlinedButton(onClick = { section = "TASK QUEUE" }) { Text("OPEN QUEUE", fontSize = 9.sp) } }
+                }
+                "FILES" -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Workspace files", color = WorkMuted, fontSize = 9.sp, modifier = Modifier.weight(1f))
+                        Button(onClick = {
+                            var name = "new-note.md"; var n = 1
+                            while (File(workspace, name).exists()) { name = "new-note-" + n + ".md"; n++ }
+                            val f = File(workspace, name); f.writeText("# HAIRA Note\n\n")
+                            selectedFile = f; fileName = f.name; editorText = f.readText(); refresh(); status = "Created " + f.name
+                        }) { Text("NEW FILE", fontSize = 9.sp) }
+                    }
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        items(files, key = { it.absolutePath }) { f ->
+                            Surface(color = if (selectedFile == f) Color(0xFF153246) else WorkPanel, shape = RoundedCornerShape(8.dp), onClick = {
+                                selectedFile = f; fileName = f.name; editorText = runCatching { f.readText() }.getOrDefault(""); status = "Opened " + f.name
+                            }) {
+                                Row(Modifier.fillMaxWidth().padding(10.dp)) {
+                                    Text(f.name, color = Color.White, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                                    Text(f.length().toString() + " bytes", color = WorkMuted, fontSize = 8.sp)
+                                }
+                            }
+                        }
+                        if (files.isEmpty()) item { Text("No files yet. Create one with NEW FILE.", color = WorkMuted, fontSize = 10.sp) }
+                    }
+                    Text(status, color = WorkMuted, fontSize = 8.sp)
+                }
+                "CODE" -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(value = fileName, onValueChange = { fileName = it.filter { c -> c.isLetterOrDigit() || c in "._-" } }, modifier = Modifier.weight(1f), singleLine = true, label = { Text("File name") })
+                        Spacer(Modifier.width(7.dp))
+                        Button(onClick = {
+                            val name = fileName.trim()
+                            if (name.isNotBlank() && !name.contains("..")) {
+                                val f = File(workspace, name); f.writeText(editorText); selectedFile = f; refresh(); status = "Saved " + f.name
+                            } else status = "Enter a valid file name."
+                        }) { Text("SAVE", fontSize = 9.sp) }
+                    }
+                    Surface(color = Color(0xFF07111D), shape = RoundedCornerShape(9.dp), modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        BasicTextField(value = editorText, onValueChange = { editorText = it }, modifier = Modifier.fillMaxSize().padding(12.dp), textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFFD6E6EF), fontSize = 11.sp, lineHeight = 16.sp))
+                    }
+                    Text("Editor saves source/text files. It does not compile or run Android projects on-device.", color = WorkMuted, fontSize = 8.sp)
+                    Text(status, color = WorkMuted, fontSize = 8.sp)
+                }
+                "RESEARCH" -> {
+                    Text("Research notebook", color = WorkCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("Create a local Markdown note for questions, findings and source links.", color = WorkMuted, fontSize = 9.sp)
+                    Button(onClick = { section = "CODE"; fileName = "research-notes.md"; editorText = "# Research Notes\n\n## Question\n\n## Findings\n\n## Sources\n" }) { Text("CREATE RESEARCH NOTE", fontSize = 9.sp) }
+                    Text("This notebook does not claim to browse the internet; research sources must be gathered separately.", color = WorkMuted, fontSize = 8.sp)
+                }
+                "TASK QUEUE" -> {
+                    OutlinedTextField(value = newTask, onValueChange = { newTask = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Add task to track") }, singleLine = true)
+                    Button(onClick = {
+                        val title = newTask.trim()
+                        if (title.isNotEmpty()) {
+                            val dir = File(workspace, "tasks").apply { mkdirs() }
+                            File(dir, "task-" + System.currentTimeMillis() + ".task").writeText(title + "\nQUEUED")
+                            newTask = ""; refresh(); status = "Task added."
+                        }
+                    }, enabled = newTask.isNotBlank()) { Text("ADD TASK", fontSize = 9.sp) }
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        items(tasks, key = { it.first }) { task ->
+                            Surface(color = WorkPanel, shape = RoundedCornerShape(8.dp)) {
+                                Row(Modifier.fillMaxWidth().padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(task.first, color = Color.White, fontSize = 10.sp)
+                                        Text(if (task.second) "COMPLETED" else "QUEUED", color = if (task.second) Color(0xFF8BE0B0) else WorkGold, fontSize = 8.sp)
+                                    }
+                                    TextButton(onClick = {
+                                        val dir = File(workspace, "tasks")
+                                        val f = dir.listFiles()?.firstOrNull { runCatching { it.readLines().firstOrNull() == task.first }.getOrDefault(false) }
+                                        if (f != null) f.writeText(task.first + "\n" + if (task.second) "QUEUED" else "DONE")
+                                        refresh()
+                                    }) { Text(if (task.second) "REOPEN" else "MARK DONE", color = WorkCyan, fontSize = 8.sp) }
+                                }
+                            }
+                        }
+                        if (tasks.isEmpty()) item { Text("Queue is empty.", color = WorkMuted, fontSize = 10.sp) }
+                    }
+                    Text("Tasks persist locally. Automatic background execution and progress tracking are not implemented yet.", color = WorkMuted, fontSize = 8.sp)
+                }
+                "STUDIOS" -> {
+                    Panel("CODING STUDIO", "Available now: create, open and save text/source files.") { OutlinedButton(onClick = { section = "CODE" }) { Text("OPEN EDITOR", fontSize = 9.sp) } }
+                    Panel("PROJECT STUDIO", "Available now: local project workspace and file manager.") { OutlinedButton(onClick = { section = "FILES" }) { Text("OPEN FILE MANAGER", fontSize = 9.sp) } }
+                    Panel("RESEARCH STUDIO", "Available now: local Markdown research notebook.") { OutlinedButton(onClick = { section = "RESEARCH" }) { Text("OPEN NOTEBOOK", fontSize = 9.sp) } }
+                    Panel("DESIGN / IMAGE / VIDEO / 3D", "Generation is not active yet. These need compatible local models and rendering pipelines; no fake generate controls are shown.")
+                    Panel("VOICE STUDIO", "Part 1 device speech input and TextToSpeech remain in Normal Mode. Advanced voice configuration is deferred.")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Metric(label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(color = WorkPanel, shape = RoundedCornerShape(8.dp), modifier = modifier) {
+        Column(Modifier.padding(9.dp)) {
+            Text(label, color = WorkMuted, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+            Text(value, color = WorkCyan, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun Panel(title: String, description: String, action: @Composable (() -> Unit)? = null) {
+    Surface(color = WorkPanel, shape = RoundedCornerShape(9.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, color = WorkCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text(description, color = Color(0xFFC0CFDA), fontSize = 9.sp, lineHeight = 14.sp)
+            action?.invoke()
+        }
+    }
+}
