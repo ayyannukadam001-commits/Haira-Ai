@@ -23,6 +23,8 @@ private val WorkCyan = Color(0xFF55E6F2)
 private val WorkMuted = Color(0xFF8CA4B8)
 private val WorkGold = Color(0xFFD7B56D)
 
+private data class WorkTask(val title: String, val state: String)
+
 @Composable
 fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: List<HairaToolDescriptor>, modelStatus: String, modelBusy: Boolean, downloadProgress: Float, onDownloadStarterModel: () -> Unit, onOpenModel: () -> Unit, onReturnNormal: () -> Unit, onExecuteTask: (String) -> String?) {
     val workspace = remember { File(context.filesDir, "haira_workspace").apply { mkdirs() } }
@@ -32,7 +34,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
     var editorText by remember { mutableStateOf("") }
     var fileName by remember { mutableStateOf("untitled.kt") }
     var newTask by remember { mutableStateOf("") }
-    var tasks by remember { mutableStateOf(emptyList<Pair<String, Boolean>>()) }
+    var tasks by remember { mutableStateOf(emptyList<WorkTask>()) }
     var status by remember { mutableStateOf("Private local workspace ready.") }
 
     fun refresh() {
@@ -40,7 +42,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
         tasks = File(workspace, "tasks").listFiles()?.filter { it.extension == "task" }?.mapNotNull { f ->
             val lines = runCatching { f.readLines() }.getOrNull() ?: return@mapNotNull null
             val title = lines.firstOrNull().orEmpty()
-            if (title.isBlank()) null else title to (lines.getOrNull(1) == "DONE")
+            if (title.isBlank()) null else WorkTask(title, lines.getOrNull(1) ?: "QUEUED")
         } ?: emptyList()
     }
     LaunchedEffect(Unit) { refresh() }
@@ -71,8 +73,8 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
                 "OVERVIEW" -> {
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         Metric("FILES", files.size.toString(), Modifier.weight(1f))
-                        Metric("OPEN TASKS", tasks.count { !it.second }.toString(), Modifier.weight(1f))
-                        Metric("DONE", tasks.count { it.second }.toString(), Modifier.weight(1f))
+                        Metric("OPEN TASKS", tasks.count { it.state != "DONE" }.toString(), Modifier.weight(1f))
+                        Metric("DONE", tasks.count { it.state == "DONE" }.toString(), Modifier.weight(1f))
                     }
                     Panel("PROJECT WORKSPACE", "Create and edit real local project files. Files remain in HAIRA's private app storage.") {
                         Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -176,24 +178,24 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
                         }
                     }, enabled = newTask.isNotBlank()) { Text("ADD TO QUEUE", fontSize = 9.sp) }
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        items(tasks, key = { it.first }) { task ->
+                        items(tasks, key = { it.title }) { task ->
                             Surface(color = WorkPanel, shape = RoundedCornerShape(8.dp)) {
                                 Row(Modifier.fillMaxWidth().padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f)) {
-                                        Text(task.first, color = Color.White, fontSize = 10.sp)
-                                        Text(if (task.second) "COMPLETED" else "QUEUED", color = if (task.second) Color(0xFF8BE0B0) else WorkGold, fontSize = 8.sp)
+                                        Text(task.title, color = Color.White, fontSize = 10.sp)
+                                        Text(task.state, color = if (task.state == "DONE") Color(0xFF8BE0B0) else if (task.state == "FAILED") Color(0xFFFF8A80) else WorkGold, fontSize = 8.sp)
                                     }
-                                    if (!task.second) TextButton(onClick = {
+                                    if (task.state != "DONE" && task.state != "RUNNING") TextButton(onClick = {
                                         val dir = File(workspace, "tasks")
-                                        val f = dir.listFiles()?.firstOrNull { runCatching { it.readLines().firstOrNull() == task.first }.getOrDefault(false) }
+                                        val f = dir.listFiles()?.firstOrNull { runCatching { it.readLines().firstOrNull() == task.title }.getOrDefault(false) }
                                         if (f != null) {
-                                            f.writeText(task.first + "\nRUNNING")
-                                            val result = onExecuteTask(task.first)
+                                            f.writeText(task.title + "\nRUNNING")
+                                            val result = onExecuteTask(task.title)
                                             if (result == null) {
-                                                f.writeText(task.first + "\nFAILED")
+                                                f.writeText(task.title + "\nFAILED")
                                                 status = "Unsupported command. Use one of the listed local tool commands."
                                             } else {
-                                                f.writeText(task.first + "\nDONE")
+                                                f.writeText(task.title + "\nDONE")
                                                 status = result
                                             }
                                             refresh()
