@@ -336,6 +336,7 @@ private fun HairaApp(
                     "MORE" -> MoreScreen(
                         onModels = { tab = "MODEL" },
                         onGitHub = { tab = "GITHUB" },
+                        onExternal = { tab = "EXTERNAL" },
                         onSettings = { tab = "SETTINGS" }
                     )
                     "SETTINGS" -> SettingsScreen(messages.size, memories.size, autoSpeak, { enabled ->
