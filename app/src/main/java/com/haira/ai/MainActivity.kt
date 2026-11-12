@@ -153,8 +153,6 @@ private fun HairaApp(
     var modelBusy by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf(0f) }
     var modelStatus by remember { mutableStateOf(if (initialModelPath.isNullOrBlank()) "Preparing first-run model setup…" else "Checking saved model…") }
-    var gemmaTermsAccepted by remember { mutableStateOf(context.getSharedPreferences("haira_model", Context.MODE_PRIVATE).getBoolean("gemma_terms_accepted", false)) }
-    var showGemmaConsent by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
