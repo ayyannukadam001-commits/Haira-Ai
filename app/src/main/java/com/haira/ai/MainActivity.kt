@@ -258,26 +258,15 @@ private fun HairaApp(
         }
     }
 
-    LaunchedEffect(initialModelPath, gemmaTermsAccepted) {
-        val saved = initialModelPath?.let { File(it) }?.takeIf { it.isFile && it.length() > 0L }
-        if (saved == null && !gemmaTermsAccepted) {
-            modelStatus = "One-time Gemma Terms acceptance is required before the automatic first-run download."
-            showGemmaConsent = true
-            return@LaunchedEffect
-        }
+    LaunchedEffect(initialModelPath) {
         modelBusy = true
         try {
+            val saved = initialModelPath?.let { File(it) }?.takeIf { it.isFile && it.length() > 0L }
             val selected = saved ?: run {
-                modelStatus = "First-run setup: downloading Gemma 3 1B over unmetered Wi-Fi…"
-                HairaModelDownloadManager.download(context, HairaModelCatalog.gemma3) { progress ->
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        downloadProgress = progress.fraction
-                        val percent = (progress.fraction * 100f).toInt()
-                        modelStatus = if (progress.total > 0L) "Downloading Gemma 3 1B: $percent%" else "Downloading Gemma 3 1B…"
-                    }
-                }
+                modelStatus = "Extracting bundled NanoLM 0.3B into app storage…"
+                withContext(Dispatchers.IO) { copyBundledNanoLm(context) }
             }
-            modelStatus = if (saved == null) "Download verified. Loading Gemma locally on CPU…" else "Loading saved model on CPU…"
+            modelStatus = "Loading " + selected.name + " locally on CPU…"
             withContext(Dispatchers.IO) { modelEngine.load(selected) }
             modelLoaded = true
             modelPath = selected.absolutePath
@@ -285,13 +274,12 @@ private fun HairaApp(
             modelStatus = "Local model ready: " + selected.name
         } catch (error: Throwable) {
             modelLoaded = false
-            modelStatus = "Automatic model setup paused: " + (error.message ?: "Unknown error") +
-                ". Connect to unmetered Wi-Fi, ensure at least 1.2 GB free, then reopen HAIRA to retry."
+            modelStatus = "Local model setup failed: " + (error.message ?: "Unknown error") +
+                ". Check available storage and reinstall if the bundled model asset is missing."
         } finally {
             modelBusy = false
         }
     }
-
 
     fun sendMessage() {
         val text = draft.trim()
@@ -375,27 +363,6 @@ private fun HairaApp(
             addMessage(answer, false)
             if (autoSpeak) speak(answer)
         }
-    }
-
-    if (showGemmaConsent) {
-        AlertDialog(
-            onDismissRequest = { },
-            title = { Text("HAIRA first-run model setup") },
-            text = { Text("HAIRA will automatically download Gemma 3 1B (~584 MB) on unmetered Wi-Fi, verify its SHA-256 checksum, and load it locally. Review the Gemma Terms of Use before accepting. The model download uses a Hugging Face mirror. Keep at least 1.2 GB free. You can decline and use Model Manager later.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    context.getSharedPreferences("haira_model", Context.MODE_PRIVATE).edit().putBoolean("gemma_terms_accepted", true).apply()
-                    gemmaTermsAccepted = true
-                    showGemmaConsent = false
-                }) { Text("ACCEPT & AUTO-DOWNLOAD") }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showGemmaConsent = false
-                    modelStatus = "Gemma download not started. Accept the terms in Model Manager to enable automatic setup."
-                }) { Text("NOT NOW") }
-            }
-        )
     }
 
     MaterialTheme(colorScheme = darkColorScheme(primary = Cyan, background = Bg, surface = Panel)) {
