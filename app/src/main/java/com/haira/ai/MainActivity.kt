@@ -379,7 +379,7 @@ private fun HairaHeader(modelLoaded: Boolean, onEnterSerious: () -> Unit) {
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(if (modelLoaded) "LOCAL AI READY" else "MODEL NOT LOADED", color = if (modelLoaded) Color(0xFF8BE0B0) else Gold, fontSize = 7.sp, fontWeight = FontWeight.Bold)
-            Text("BUILD 0.7.0", color = Muted, fontSize = 8.sp)
+            Text("BUILD 0.8.0", color = Muted, fontSize = 8.sp)
         }
         TextButton(onClick = onEnterSerious, contentPadding = PaddingValues(horizontal = 7.dp, vertical = 3.dp)) {
             Text("WORK MODE", color = Cyan, fontSize = 8.sp, fontWeight = FontWeight.Bold)
