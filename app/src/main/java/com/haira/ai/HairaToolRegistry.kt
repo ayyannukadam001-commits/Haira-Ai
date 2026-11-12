@@ -68,8 +68,8 @@ class HairaToolRegistry(context: Context) {
         val projectDir = File(workspace, folderName)
         if (projectDir.exists()) return "Project folder already exists: $folderName"
         if (!projectDir.mkdirs()) return "Project folder create nahi ho paya."
-        File(projectDir, "README.md").writeText("# $safeName\\n\\nCreated by HAIRA AI local project scaffold.\\n\\n## Next steps\\n- Define requirements\\n- Implement features\\n- Add tests\\n")
-        File(projectDir, "TASKS.md").writeText("# $safeName — Task Plan\\n\\n- [ ] Confirm requirements\\n- [ ] Create project structure\\n- [ ] Implement first feature\\n- [ ] Test and review\\n")
+        File(projectDir, "README.md").writeText("# $safeName\n\nCreated by HAIRA AI local project scaffold.\n\n## Next steps\n- Define requirements\n- Implement features\n- Add tests\n")
+        File(projectDir, "TASKS.md").writeText("# $safeName — Task Plan\n\n- [ ] Confirm requirements\n- [ ] Create project structure\n- [ ] Implement first feature\n- [ ] Test and review\n")
         return "Starter project create ho gaya: $folderName (README.md, TASKS.md). Ye scaffold hai, complete app nahi."
     }
     private fun searchWorkspace(query: String): String {
