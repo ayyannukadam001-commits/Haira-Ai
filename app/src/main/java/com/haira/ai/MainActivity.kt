@@ -456,7 +456,37 @@ private fun HairaApp(
                         memories.removeAll { it.id == id }
                         memoryStore.saveMemories(memories.toList())
                     })
-                    "MODELS" -> ModelScreen(modelPath, modelLoaded, modelBusy, modelStatus, { modelPicker.launch(arrayOf("*/*")) }, { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(HairaIntelligenceCatalog.gemmaOfficialModelPage))) } })
+                    "MODELS" -> ModelScreen(
+                        modelPath, modelLoaded, modelBusy, modelStatus,
+                        { modelPicker.launch(arrayOf("*/*")) },
+                        { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(HairaIntelligenceCatalog.gemmaOfficialModelPage))) } },
+                        {
+                            if (!modelBusy) scope.launch {
+                                modelBusy = true
+                                downloadProgress = 0f
+                                modelStatus = "Downloading verified Gemma 3 1B over Wi-Fi…"
+                                try {
+                                    val downloaded = HairaModelDownloadManager.download(context, HairaModelCatalog.gemma3) { progress ->
+                                        scope.launch {
+                                            downloadProgress = progress.fraction
+                                            val percent = (progress.fraction * 100f).toInt()
+                                            modelStatus = if (progress.total > 0L) "Downloading Gemma 3 1B: $percent%" else "Downloading Gemma 3 1B…"
+                                        }
+                                    }
+                                    modelStatus = "SHA-256 verified. Loading Gemma locally on CPU…"
+                                    withContext(Dispatchers.IO) { modelEngine.load(downloaded) }
+                                    modelPath = downloaded.absolutePath
+                                    rememberModel(downloaded.absolutePath)
+                                    modelLoaded = true
+                                    modelStatus = "Gemma 3 1B loaded locally: " + downloaded.name
+                                } catch (error: Throwable) {
+                                    modelStatus = "Gemma setup stopped: " + (error.message ?: "Unknown error")
+                                } finally {
+                                    modelBusy = false
+                                }
+                            }
+                        }
+                    )
                     else -> SettingsScreen(messages.size, memories.size, autoSpeak, { enabled ->
                         autoSpeak = enabled
                         context.getSharedPreferences("haira_voice", Context.MODE_PRIVATE).edit().putBoolean("auto_speak", enabled).apply()
@@ -720,7 +750,8 @@ private fun MemoryScreen(messages: List<HairaMessage>, memories: List<HairaMemor
 }
 
 @Composable
-private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: String, onImport: () -> Unit, onOpenGemma: () -> Unit) {
+private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: String, onImport: () -> Unit, onOpenGemma: () -> Unit, onDownloadGemma: () -> Unit) {
+    var gemmaTermsAccepted by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("LOCAL MODEL MANAGER", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
         Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
@@ -735,8 +766,13 @@ private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: St
             Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Text("PRIMARY MODEL • GEMMA 3 1B INT4", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 Text("Official LiteRT-LM model file: Gemma3-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm (~584 MB).", color = Color.White, fontSize = 9.sp, lineHeight = 14.sp)
-                Text("Open the official model page, sign in and accept the Gemma terms there, then download the .litertlm file and return here to import it. HAIRA does not collect or store your login or access token.", color = Muted, fontSize = 8.sp, lineHeight = 13.sp)
-                OutlinedButton(onClick = onOpenGemma, modifier = Modifier.fillMaxWidth()) { Text("OPEN OFFICIAL GEMMA MODEL PAGE", color = Cyan, fontSize = 9.sp) }
+                Text("584,417,280-byte LiteRT-LM file. Download uses a Hugging Face mirror; SHA-256 is checked before HAIRA loads it. Gemma Terms of Use and prohibited-use policy still apply.", color = Muted, fontSize = 8.sp, lineHeight = 13.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = gemmaTermsAccepted, onCheckedChange = { gemmaTermsAccepted = it })
+                    Text("I have read and accept the Gemma Terms of Use.", color = Color.White, fontSize = 8.sp, lineHeight = 12.sp)
+                }
+                Button(onClick = onDownloadGemma, enabled = !busy && gemmaTermsAccepted, modifier = Modifier.fillMaxWidth()) { Text("DOWNLOAD + VERIFY + LOAD GEMMA", fontSize = 9.sp) }
+                OutlinedButton(onClick = onOpenGemma, modifier = Modifier.fillMaxWidth()) { Text("READ OFFICIAL GEMMA TERMS / MODEL PAGE", color = Cyan, fontSize = 9.sp) }
             }
         }
         SettingRow("Runtime", "Google LiteRT-LM 0.18.1 • CPU backend")
@@ -755,6 +791,9 @@ private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: St
                 }
             }
         }
+        Text("SECONDARY MODEL • NANOLM 0.3B", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("Q4_K_M GGUF • approximately 274 MB • GPL-3.0. Its model file is identified, but this build does not yet contain a GGUF inference engine, so it cannot be loaded into chat yet.", color = Muted, fontSize = 8.sp, lineHeight = 13.sp)
+        OutlinedButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(HairaIntelligenceCatalog.nanoLmGgufPage))) } }, modifier = Modifier.fillMaxWidth()) { Text("VIEW NANOLM MODEL FILES", color = Cyan, fontSize = 9.sp) }
         Text("EXTERNAL MODEL ACCESS DISCOVERY", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
         Text("HAIRA will classify provider access only after checking official documentation and a documented safe availability endpoint. Unknown access is never reported as no-key.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
         HairaIntelligenceCatalog.externalAccessStates.forEach { state ->
