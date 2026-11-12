@@ -482,6 +482,25 @@ private fun HairaApp(
                             }
                         },
                         {
+                            if (!modelBusy) scope.launch {
+                                modelBusy = true
+                                modelStatus = "Preparing bundled NanoLM…"
+                                try {
+                                    val bundled = withContext(Dispatchers.IO) { copyBundledNanoLm(context) }
+                                    modelStatus = "Loading NanoLM locally on CPU…"
+                                    withContext(Dispatchers.IO) { modelEngine.load(bundled) }
+                                    modelPath = bundled.absolutePath
+                                    rememberModel(bundled.absolutePath)
+                                    modelLoaded = true
+                                    modelStatus = "NanoLM 0.3B is loaded locally."
+                                } catch (error: Throwable) {
+                                    modelStatus = "NanoLM could not be loaded: " + (error.message ?: "Unknown error")
+                                } finally {
+                                    modelBusy = false
+                                }
+                            }
+                        },
+                        {
                             runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(HairaIntelligenceCatalog.nanoLmGgufPage))) }
                         }
                     )
@@ -683,7 +702,7 @@ private fun ChatScreen(messages: List<HairaMessage>, draft: String, onDraft: (St
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("◉", color = Cyan, fontSize = 40.sp)
                     Text("Hello, Sir ji", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                    Text("HAIRA downloads its starter model over Wi-Fi on first launch.", color = Muted, fontSize = 10.sp)
+                    Text("NanoLM is bundled in this APK. Gemma is available as an in-app download.", color = Muted, fontSize = 10.sp)
                 }
             }
         } else {
@@ -748,7 +767,7 @@ private fun MemoryScreen(messages: List<HairaMessage>, memories: List<HairaMemor
 }
 
 @Composable
-private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: String, onImport: () -> Unit, onOpenGemma: () -> Unit, onDownloadGemma: () -> Unit, onOpenNano: () -> Unit) {
+private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: String, onImport: () -> Unit, onOpenGemma: () -> Unit, onDownloadGemma: () -> Unit, onUseNano: () -> Unit, onOpenNano: () -> Unit) {
     var gemmaTermsAccepted by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("LOCAL MODEL MANAGER", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
@@ -757,7 +776,7 @@ private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: St
                 Text(if (loaded) "MODEL LOADED" else "NO MODEL ACTIVE", color = if (loaded) Color(0xFF8BE0B0) else Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 Text(status, color = Color.White, fontSize = 10.sp, lineHeight = 15.sp)
                 if (path.isNotBlank()) Text(File(path).name, color = Muted, fontSize = 8.sp)
-                Button(onClick = onImport, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "PLEASE WAIT…" else "IMPORT .LITERTLM MODEL") }
+                Button(onClick = onImport, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "PLEASE WAIT…" else "IMPORT COMPATIBLE MODEL") }
             }
         }
         Surface(color = Panel, shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
@@ -773,8 +792,8 @@ private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: St
                 OutlinedButton(onClick = onOpenGemma, modifier = Modifier.fillMaxWidth()) { Text("READ OFFICIAL GEMMA TERMS / MODEL PAGE", color = Cyan, fontSize = 9.sp) }
             }
         }
-        SettingRow("Runtime", "Google LiteRT-LM 0.18.1 • CPU backend")
-        SettingRow("Supported format", "Gemma 3 and Qwen3 .litertlm • one active model at a time")
+        SettingRow("Runtime", "Google LiteRT-LM 0.18.1 + llama.cpp GGUF runtime • CPU backend")
+        SettingRow("Supported format", "NanoLM .gguf + Gemma 3 / Qwen3 .litertlm • one active model at a time")
         SettingRow("Storage", "Imported models are stored in app-private storage. Keep the existing Qwen3 file as a backup until Gemma passes device testing.")
         SettingRow("AI network", "Inference stays local. Model downloads require an internet connection; chat does not call a hosted AI provider.")
         SettingRow("Device limits", "Gemma is about 584 MB. Allow enough free storage and RAM; speed, heat and stability on this phone still need real-device testing.")
@@ -789,9 +808,10 @@ private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: St
                 }
             }
         }
-        Text("SECONDARY MODEL • NANOLM 0.3B", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-        Text("Q4_K_M GGUF • approximately 274 MB • GPL-3.0. Its model file is identified, but this build does not yet contain a GGUF inference engine, so it cannot be loaded into chat yet.", color = Muted, fontSize = 8.sp, lineHeight = 13.sp)
-        OutlinedButton(onClick = onOpenNano, modifier = Modifier.fillMaxWidth()) { Text("VIEW NANOLM MODEL FILES", color = Cyan, fontSize = 9.sp) }
+        Text("BUNDLED MODEL • NANOLM 0.3B", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("Q4_K_M GGUF • approximately 274 MB • bundled in this APK and extracted on first launch. Runs locally through the CPU llama.cpp runtime. GPL-3.0 model license and attribution are included with the app. The model card lists English and Chinese; Roman Hinglish quality is not guaranteed.", color = Muted, fontSize = 8.sp, lineHeight = 13.sp)
+        Button(onClick = onUseNano, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("USE BUNDLED NANOLM", fontSize = 9.sp) }
+        OutlinedButton(onClick = onOpenNano, modifier = Modifier.fillMaxWidth()) { Text("VIEW NANOLM SOURCE / MODEL CARD", color = Cyan, fontSize = 9.sp) }
         Text("EXTERNAL MODEL ACCESS DISCOVERY", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
         Text("HAIRA will classify provider access only after checking official documentation and a documented safe availability endpoint. Unknown access is never reported as no-key.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
         HairaIntelligenceCatalog.externalAccessStates.forEach { state ->
@@ -802,7 +822,7 @@ private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: St
             SettingRow(provider.name + " • " + provider.access, provider.notes)
         }
         SettingRow("Verified no-key providers", HairaExternalProviderCatalog.noKeyVerifiedProviders.size.toString() + " currently verified")
-        Text("Importing a compatible .litertlm file activates it locally. Candidate models are not active until imported and loaded successfully.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+        Text("NanoLM is bundled and can be reloaded here. Gemma and Qwen3 remain separate LiteRT-LM models; only a successfully loaded model is reported as active.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
     }
 }
 
