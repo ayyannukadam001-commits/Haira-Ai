@@ -29,7 +29,7 @@ private val WorkGold = Color(0xFFD7B56D)
 private data class WorkTask(val id: String, val title: String, val state: String)
 
 @Composable
-fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: List<HairaToolDescriptor>, modelStatus: String, modelBusy: Boolean, downloadProgress: Float, onDownloadStarterModel: () -> Unit, onOpenModel: () -> Unit, onReturnNormal: () -> Unit, onExecuteTask: (String) -> String?, onOpenExternalPlugin: (String) -> String) {
+fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: List<HairaToolDescriptor>, modelStatus: String, modelBusy: Boolean, downloadProgress: Float, onDownloadStarterModel: () -> Unit, onOpenModel: () -> Unit, onReturnNormal: () -> Unit, onExecuteTask: (String) -> String?) {
     val workspace = remember { File(context.filesDir, "haira_workspace").apply { mkdirs() } }
     var section by remember { mutableStateOf("OVERVIEW") }
     var files by remember { mutableStateOf(emptyList<File>()) }
@@ -62,7 +62,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
             Text("HAIRA", color = WorkCyan, fontSize = 21.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
             Text("SERIOUS MODE", color = WorkGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             HorizontalDivider(color = WorkCyan.copy(alpha = 0.25f))
-            listOf("OVERVIEW", "SELF SETUP", "TOOLS", "FILES", "CODE", "RESEARCH", "TASK QUEUE", "STUDIOS").forEach { item ->
+            listOf("OVERVIEW", "SELF SETUP", "MODEL HUB", "TOOLS", "FILES", "CODE", "RESEARCH", "TASK QUEUE", "GITHUB").forEach { item ->
                 TextButton(onClick = { section = item }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(5.dp)) {
                     Text((if (section == item) "▸ " else "") + item, color = if (section == item) WorkCyan else WorkMuted, fontSize = 9.sp)
                 }
@@ -75,7 +75,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(section, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                    Text("HAIRA AI • LOCAL-FIRST WORKSTATION • v1.0.0", color = WorkMuted, fontSize = 8.sp)
+                    Text("HAIRA AI • HYBRID WORKSTATION • v1.1.0", color = WorkMuted, fontSize = 8.sp)
                 }
                 Text(if (modelLoaded) "MODEL READY" else "MODEL NOT LOADED", color = if (modelLoaded) Color(0xFF8BE0B0) else WorkGold, fontSize = 8.sp)
             }
@@ -231,13 +231,21 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
                     Text(status, color = WorkMuted, fontSize = 8.sp)
                     Text("Execution is user-started and foreground-only. Only reviewed local workspace tools run; no shell commands, downloaded code, or silent background execution.", color = WorkGold, fontSize = 8.sp)
                 }
-                "STUDIOS" -> {
-                    Panel("CODING STUDIO", "Available now: create, open and save text/source files.") { OutlinedButton(onClick = { section = "CODE" }) { Text("OPEN EDITOR", fontSize = 9.sp) } }
-                    Panel("PROJECT STUDIO", "Available now: local project workspace and file manager.") { OutlinedButton(onClick = { section = "FILES" }) { Text("OPEN FILE MANAGER", fontSize = 9.sp) } }
-                    Panel("RESEARCH STUDIO", "Available now: local Markdown research notebook.") { OutlinedButton(onClick = { section = "RESEARCH" }) { Text("OPEN NOTEBOOK", fontSize = 9.sp) } }
-                    Panel("DESIGN / IMAGE / VIDEO / 3D", "Generation is not active yet. These need compatible local models and rendering pipelines; no fake generate controls are shown.")
-                    Panel("VOICE STUDIO", "Part 1 device speech input and TextToSpeech remain in Normal Mode. Advanced voice configuration is deferred.")
+                "MODEL HUB" -> {
+                    Text("LOCAL MODEL ROADMAP", color = WorkCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        items(HairaIntelligenceCatalog.localCandidates, key = { it.id }) { candidate ->
+                            Panel(candidate.name, candidate.limitation) {
+                                Text(candidate.provider + " • " + candidate.approximateSize, color = WorkCyan, fontSize = 8.sp)
+                                Text(candidate.format + " • " + candidate.runtime, color = WorkMuted, fontSize = 8.sp)
+                                Text(candidate.status, color = WorkGold, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    Panel("MODEL ROUTING", "One local model at a time by default. The router will release the previous runtime before loading another model to reduce RAM pressure and heat.")
+                    Panel("EXTERNAL MODEL DISCOVERY", "Provider access is classified as no-key, API-key, login/OAuth, unavailable, or unknown. HAIRA must verify official access rules; unknown is never treated as free no-key access.")
                 }
+                "GITHUB" -> GitHubManagerScreen()
             }
         }
     }
