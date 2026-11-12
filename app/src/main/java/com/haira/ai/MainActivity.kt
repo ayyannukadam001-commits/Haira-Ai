@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
         tts = TextToSpeech(this) { status ->
             ttsReady = status == TextToSpeech.SUCCESS
             if (ttsReady) {
-                val result = tts?.setLanguage(Locale("en", "IN"))
+                tts?.setSpeechRate(0.94f)\n                tts?.setPitch(1.02f)\n                val result = tts?.setLanguage(Locale("en", "IN"))
                 if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                     tts?.setLanguage(Locale.getDefault())
                 }
@@ -258,7 +258,7 @@ private fun HairaApp(
                     "CHAT" -> ChatScreen(messages, draft, { draft = it }, { sendMessage() }, {
                         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN")\n                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "en-IN")\n                            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
                             putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to HAIRA")
                         }
                         try { speechLauncher.launch(intent) } catch (_: Exception) { }
@@ -305,7 +305,7 @@ private fun Header() {
         }
         Column(horizontalAlignment = Alignment.End) {
             Text("GATEWAY AI", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-            Text("BUILD 0.5.0", color = Muted, fontSize = 9.sp)
+            Text("BUILD 0.6.0", color = Muted, fontSize = 9.sp)
         }
     }
 }
@@ -379,73 +379,114 @@ private fun HomeScreen(messageCount: Int, gatewayStatus: String, onChat: () -> U
 @Composable
 private fun HoloCore() {
     val motion = androidx.compose.animation.core.rememberInfiniteTransition(label = "haira_hologram")
-    val pulse by motion.animateFloat(0.88f, 1.08f, animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-        androidx.compose.animation.core.tween(2100, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+    val pulse by motion.animateFloat(0.94f, 1.06f, animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+        androidx.compose.animation.core.tween(1900, easing = androidx.compose.animation.core.FastOutSlowInEasing),
         repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
     ), label = "pulse")
-    val floatY by motion.animateFloat(-4f, 4f, animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-        androidx.compose.animation.core.tween(3000, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+    val floatY by motion.animateFloat(-5f, 5f, animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+        androidx.compose.animation.core.tween(3200, easing = androidx.compose.animation.core.FastOutSlowInEasing),
         repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
     ), label = "float")
-    Box(Modifier.fillMaxWidth().height(270.dp).background(
-        Brush.radialGradient(listOf(Color(0xFF173F55), Color(0xFF0A1928), Color.Transparent)),
-        RoundedCornerShape(22.dp)), contentAlignment = Alignment.Center) {
+    val orbit by motion.animateFloat(0f, 360f, animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+        androidx.compose.animation.core.tween(18000, easing = androidx.compose.animation.core.LinearEasing)
+    ), label = "orbit")
+    val blink by motion.animateFloat(0f, 1f, animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+        androidx.compose.animation.core.keyframes {
+            durationMillis = 4200
+            0f at 0
+            0f at 1900
+            1f at 1960
+            0f at 2030
+            0f at 4200
+        }
+    ), label = "blink")
+    Box(
+        Modifier.fillMaxWidth().height(310.dp)
+            .background(Brush.radialGradient(listOf(Color(0xFF17445A), Color(0xFF0B1B2A), Color(0xFF07111D), Color.Transparent)), RoundedCornerShape(24.dp)),
+        contentAlignment = Alignment.Center
+    ) {
         Canvas(Modifier.fillMaxSize()) {
             val cx = size.width / 2f
-            val cy = size.height / 2f - 2.dp.toPx()
-            val r = size.minDimension * 0.37f
-            drawCircle(Cyan.copy(alpha = 0.07f * pulse), r * 1.12f, Offset(cx, cy))
-            drawCircle(Cyan.copy(alpha = 0.24f), r, Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(1.3.dp.toPx()))
-            drawCircle(Gold.copy(alpha = 0.48f), r * 0.86f, Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(0.8.dp.toPx()))
-            drawArc(Cyan.copy(alpha = 0.85f), 210f, 105f, false,
-                Offset(cx-r, cy-r), androidx.compose.ui.geometry.Size(r*2, r*2),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
-            for (i in 0..8) {
-                val y = cy - 48.dp.toPx() + i * 12.dp.toPx()
-                drawLine(Cyan.copy(alpha = 0.045f), Offset(cx-58.dp.toPx(), y), Offset(cx+58.dp.toPx(), y), 0.7.dp.toPx())
+            val cy = size.height * 0.47f
+            val dp = density
+            val ring = size.minDimension * 0.39f
+            val stroke = androidx.compose.ui.graphics.drawscope.Stroke(1.1.dp.toPx())
+            drawCircle(Cyan.copy(alpha = 0.045f * pulse), ring * 1.18f, Offset(cx, cy))
+            drawCircle(Cyan.copy(alpha = 0.22f), ring, Offset(cx, cy), style = stroke)
+            drawCircle(Gold.copy(alpha = 0.30f), ring * 0.91f, Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(0.8.dp.toPx()))
+            drawArc(Cyan.copy(alpha = 0.9f), orbit, 76f, false, Offset(cx-ring, cy-ring), androidx.compose.ui.geometry.Size(ring*2, ring*2), style = androidx.compose.ui.graphics.drawscope.Stroke(2.2.dp.toPx()))
+            drawArc(Gold.copy(alpha = 0.72f), 190f-orbit*0.45f, 48f, false, Offset(cx-ring*0.91f, cy-ring*0.91f), androidx.compose.ui.geometry.Size(ring*1.82f, ring*1.82f), style = androidx.compose.ui.graphics.drawscope.Stroke(1.4.dp.toPx()))
+            for (i in 0..12) {
+                val angle = Math.toRadians((i * 27.7 + orbit * 0.12).toDouble())
+                val inner = ring * 1.02f
+                val outer = ring * if (i % 3 == 0) 1.12f else 1.07f
+                val x1 = cx + kotlin.math.cos(angle).toFloat() * inner
+                val y1 = cy + kotlin.math.sin(angle).toFloat() * inner
+                val x2 = cx + kotlin.math.cos(angle).toFloat() * outer
+                val y2 = cy + kotlin.math.sin(angle).toFloat() * outer
+                drawLine(if (i % 3 == 0) Gold.copy(alpha = 0.75f) else Cyan.copy(alpha = 0.48f), Offset(x1,y1), Offset(x2,y2), 1.2.dp.toPx())
             }
-            val top = cy - 70.dp.toPx() + floatY.dp.toPx()
+            val top = cy - 79.dp.toPx() + floatY.dp.toPx()
+            val faceW = 43.dp.toPx()
+            val faceH = 91.dp.toPx()
             val face = Path().apply {
                 moveTo(cx, top)
-                cubicTo(cx-30.dp.toPx(), top-2.dp.toPx(), cx-34.dp.toPx(), top+25.dp.toPx(), cx-25.dp.toPx(), top+51.dp.toPx())
-                cubicTo(cx-19.dp.toPx(), top+70.dp.toPx(), cx-8.dp.toPx(), top+76.dp.toPx(), cx, top+77.dp.toPx())
-                cubicTo(cx+12.dp.toPx(), top+75.dp.toPx(), cx+23.dp.toPx(), top+63.dp.toPx(), cx+27.dp.toPx(), top+42.dp.toPx())
-                cubicTo(cx+34.dp.toPx(), top+15.dp.toPx(), cx+25.dp.toPx(), top-2.dp.toPx(), cx, top)
+                cubicTo(cx-faceW*0.82f, top-2.dp.toPx(), cx-faceW, top+27.dp.toPx(), cx-faceW*0.84f, top+55.dp.toPx())
+                cubicTo(cx-faceW*0.70f, top+80.dp.toPx(), cx-faceW*0.35f, top+faceH, cx, top+faceH+2.dp.toPx())
+                cubicTo(cx+faceW*0.38f, top+faceH, cx+faceW*0.73f, top+79.dp.toPx(), cx+faceW*0.86f, top+53.dp.toPx())
+                cubicTo(cx+faceW, top+25.dp.toPx(), cx+faceW*0.78f, top-2.dp.toPx(), cx, top)
                 close()
             }
             val hair = Path().apply {
-                moveTo(cx-28.dp.toPx(), top+40.dp.toPx())
-                cubicTo(cx-39.dp.toPx(), top+4.dp.toPx(), cx-15.dp.toPx(), top-19.dp.toPx(), cx+8.dp.toPx(), top-12.dp.toPx())
-                cubicTo(cx+36.dp.toPx(), top-8.dp.toPx(), cx+39.dp.toPx(), top+20.dp.toPx(), cx+27.dp.toPx(), top+44.dp.toPx())
-                cubicTo(cx+22.dp.toPx(), top+10.dp.toPx(), cx+8.dp.toPx(), top+13.dp.toPx(), cx-1.dp.toPx(), top+26.dp.toPx())
-                cubicTo(cx-10.dp.toPx(), top+10.dp.toPx(), cx-20.dp.toPx(), top+18.dp.toPx(), cx-28.dp.toPx(), top+40.dp.toPx())
+                moveTo(cx-faceW*0.98f, top+54.dp.toPx())
+                cubicTo(cx-faceW*1.12f, top+8.dp.toPx(), cx-faceW*0.52f, top-24.dp.toPx(), cx+4.dp.toPx(), top-21.dp.toPx())
+                cubicTo(cx+faceW*0.95f, top-18.dp.toPx(), cx+faceW*1.12f, top+15.dp.toPx(), cx+faceW*0.91f, top+55.dp.toPx())
+                cubicTo(cx+faceW*0.68f, top+28.dp.toPx(), cx+faceW*0.53f, top+12.dp.toPx(), cx+8.dp.toPx(), top+23.dp.toPx())
+                cubicTo(cx-8.dp.toPx(), top+8.dp.toPx(), cx-22.dp.toPx(), top+21.dp.toPx(), cx-faceW*0.98f, top+54.dp.toPx())
                 close()
             }
-            drawPath(hair, Color(0xFF16445B).copy(alpha=0.95f), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
-            drawPath(face, Brush.verticalGradient(listOf(Color(0xFF7CEEFF).copy(alpha=0.24f), Color(0xFF1B526A).copy(alpha=0.12f)), top, top+78.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
-            drawLine(Cyan.copy(alpha=0.62f), Offset(cx-9.dp.toPx(), top+69.dp.toPx()), Offset(cx-9.dp.toPx(), top+92.dp.toPx()), 2.dp.toPx())
-            drawLine(Cyan.copy(alpha=0.62f), Offset(cx+9.dp.toPx(), top+69.dp.toPx()), Offset(cx+9.dp.toPx(), top+92.dp.toPx()), 2.dp.toPx())
+            drawPath(hair, Brush.linearGradient(listOf(Color(0xFF62E9F5).copy(alpha=0.55f), Color(0xFF153D59).copy(alpha=0.9f), Color(0xFF0A2236))), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
+            drawPath(face, Brush.verticalGradient(listOf(Color(0xFF9DF5FF).copy(alpha=0.30f), Color(0xFF2E7891).copy(alpha=0.17f), Color(0xFF0D2B42).copy(alpha=0.25f)), top, top+faceH), style = androidx.compose.ui.graphics.drawscope.Stroke(1.8.dp.toPx()))
+            // Face contour, fringe and neck details create a more expressive digital-human silhouette.
+            drawPath(Path().apply {
+                moveTo(cx-34.dp.toPx(), top+18.dp.toPx())
+                cubicTo(cx-21.dp.toPx(), top-5.dp.toPx(), cx-7.dp.toPx(), top+3.dp.toPx(), cx+2.dp.toPx(), top+17.dp.toPx())
+                cubicTo(cx+13.dp.toPx(), top-2.dp.toPx(), cx+27.dp.toPx(), top+5.dp.toPx(), cx+37.dp.toPx(), top+25.dp.toPx())
+            }, Cyan.copy(alpha=0.72f), style = androidx.compose.ui.graphics.drawscope.Stroke(1.3.dp.toPx()))
+            drawLine(Cyan.copy(alpha=0.45f), Offset(cx-37.dp.toPx(),top+47.dp.toPx()), Offset(cx-31.dp.toPx(),top+69.dp.toPx()), 1.dp.toPx())
+            drawLine(Cyan.copy(alpha=0.45f), Offset(cx+37.dp.toPx(),top+47.dp.toPx()), Offset(cx+31.dp.toPx(),top+69.dp.toPx()), 1.dp.toPx())
+            val eyeY = top + 48.dp.toPx()
+            val eyeAlpha = if (blink > 0.5f) 0.18f else 0.95f
+            drawLine(Cyan.copy(alpha=eyeAlpha), Offset(cx-25.dp.toPx(),eyeY), Offset(cx-10.dp.toPx(),eyeY), 2.dp.toPx())
+            drawLine(Cyan.copy(alpha=eyeAlpha), Offset(cx+10.dp.toPx(),eyeY), Offset(cx+25.dp.toPx(),eyeY), 2.dp.toPx())
+            drawLine(Color(0xFFB9F8FF).copy(alpha=0.55f), Offset(cx,top+51.dp.toPx()), Offset(cx-2.dp.toPx(),top+67.dp.toPx()), 1.dp.toPx())
+            drawLine(Gold.copy(alpha=0.78f), Offset(cx-7.dp.toPx(),top+77.dp.toPx()), Offset(cx+7.dp.toPx(),top+77.dp.toPx()), 1.2.dp.toPx())
+            drawLine(Cyan.copy(alpha=0.75f), Offset(cx-12.dp.toPx(),top+faceH-1.dp.toPx()), Offset(cx-12.dp.toPx(),top+faceH+27.dp.toPx()), 2.dp.toPx())
+            drawLine(Cyan.copy(alpha=0.75f), Offset(cx+12.dp.toPx(),top+faceH-1.dp.toPx()), Offset(cx+12.dp.toPx(),top+faceH+27.dp.toPx()), 2.dp.toPx())
             val shoulders = Path().apply {
-                moveTo(cx-12.dp.toPx(), top+89.dp.toPx())
-                cubicTo(cx-22.dp.toPx(), top+93.dp.toPx(), cx-49.dp.toPx(), top+96.dp.toPx(), cx-63.dp.toPx(), top+125.dp.toPx())
-                cubicTo(cx-34.dp.toPx(), top+141.dp.toPx(), cx+34.dp.toPx(), top+141.dp.toPx(), cx+63.dp.toPx(), top+125.dp.toPx())
-                cubicTo(cx+49.dp.toPx(), top+96.dp.toPx(), cx+22.dp.toPx(), top+93.dp.toPx(), cx+12.dp.toPx(), top+89.dp.toPx())
+                moveTo(cx-12.dp.toPx(), top+faceH+23.dp.toPx())
+                cubicTo(cx-35.dp.toPx(), top+faceH+25.dp.toPx(), cx-64.dp.toPx(), top+faceH+37.dp.toPx(), cx-78.dp.toPx(), top+faceH+76.dp.toPx())
+                cubicTo(cx-42.dp.toPx(), top+faceH+96.dp.toPx(), cx+42.dp.toPx(), top+faceH+96.dp.toPx(), cx+78.dp.toPx(), top+faceH+76.dp.toPx())
+                cubicTo(cx+64.dp.toPx(), top+faceH+37.dp.toPx(), cx+35.dp.toPx(), top+faceH+25.dp.toPx(), cx+12.dp.toPx(), top+faceH+23.dp.toPx())
                 close()
             }
-            drawPath(shoulders, Brush.verticalGradient(listOf(Color(0xFF48DDF0).copy(alpha=0.22f), Color(0xFF0C2638).copy(alpha=0.10f))), style = androidx.compose.ui.graphics.drawscope.Stroke(1.7.dp.toPx()))
-            drawLine(Cyan.copy(alpha=0.9f), Offset(cx-17.dp.toPx(), top+43.dp.toPx()), Offset(cx-7.dp.toPx(), top+43.dp.toPx()), 1.8.dp.toPx())
-            drawLine(Cyan.copy(alpha=0.9f), Offset(cx+7.dp.toPx(), top+43.dp.toPx()), Offset(cx+17.dp.toPx(), top+43.dp.toPx()), 1.8.dp.toPx())
-            drawLine(Gold.copy(alpha=0.65f), Offset(cx-5.dp.toPx(), top+62.dp.toPx()), Offset(cx+5.dp.toPx(), top+62.dp.toPx()), 1.dp.toPx())
-            drawCircle(Gold.copy(alpha=0.85f), 2.dp.toPx(), Offset(cx+78.dp.toPx(), cy-55.dp.toPx()))
-            drawCircle(Cyan.copy(alpha=0.85f), 2.dp.toPx(), Offset(cx-83.dp.toPx(), cy+45.dp.toPx()))
+            drawPath(shoulders, Brush.verticalGradient(listOf(Color(0xFF65EAF5).copy(alpha=0.28f), Color(0xFF12374E).copy(alpha=0.18f))), style = androidx.compose.ui.graphics.drawscope.Stroke(1.8.dp.toPx()))
+            drawLine(Gold.copy(alpha=0.6f), Offset(cx-28.dp.toPx(),top+faceH+54.dp.toPx()), Offset(cx+28.dp.toPx(),top+faceH+54.dp.toPx()), 1.dp.toPx())
+            for (i in 0..6) {
+                val y = cy - 112.dp.toPx() + i * 35.dp.toPx()
+                drawLine(Cyan.copy(alpha=0.045f), Offset(cx-112.dp.toPx(),y), Offset(cx+112.dp.toPx(),y), 0.7.dp.toPx())
+            }
+            drawCircle(Gold.copy(alpha=0.9f), 2.4.dp.toPx(), Offset(cx+ring*1.02f,cy-ring*0.48f))
+            drawCircle(Cyan.copy(alpha=0.9f), 2.dp.toPx(), Offset(cx-ring*1.04f,cy+ring*0.38f))
+            drawCircle(Color.White.copy(alpha=0.5f), 1.5.dp.toPx(), Offset(cx+ring*0.56f,cy+ring*0.82f))
         }
-        Column(Modifier.align(Alignment.BottomCenter).padding(bottom=15.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("HAIRA", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
-            Text("HOLOGRAPHIC INTERFACE", color = Cyan, fontSize = 8.sp, letterSpacing = 2.sp)
-            Text("DIGITAL PRESENCE • ACTIVE", color = Muted, fontSize = 7.sp, letterSpacing = 1.sp)
+        Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 13.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("HAIRA", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 5.sp)
+            Text("HOLOGRAPHIC DIGITAL PRESENCE", color = Cyan, fontSize = 8.sp, letterSpacing = 1.8.sp)
+            Text("AWARE • RESPONSIVE • ONLINE-READY", color = Muted, fontSize = 7.sp, letterSpacing = 1.sp)
         }
-        Text("✦", color = Gold, fontSize = 17.sp, modifier = Modifier.align(Alignment.TopEnd).padding(top=34.dp,end=42.dp))
-        Text("✧", color = Cyan, fontSize = 16.sp, modifier = Modifier.align(Alignment.CenterStart).padding(start=24.dp,top=20.dp))
+        Text("✦", color = Gold, fontSize = 18.sp, modifier = Modifier.align(Alignment.TopEnd).padding(top=28.dp,end=36.dp))
+        Text("⌁", color = Cyan, fontSize = 20.sp, modifier = Modifier.align(Alignment.CenterStart).padding(start=22.dp,top=12.dp))
     }
 }
 
@@ -648,7 +689,7 @@ private fun SettingsScreen(
                 }
             }
         }
-        Text("HAIRA AI • ANDROID BUILD 0.5.0", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
+        Text("HAIRA AI • ANDROID BUILD 0.6.0", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
     }
 }
 
