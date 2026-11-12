@@ -160,6 +160,13 @@ private fun HairaApp(
         (context as? Activity)?.requestedOrientation = if (seriousMode) ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
     }
 
+    fun addMessage(text: String, fromUser: Boolean) {
+        messages.add(HairaMessage(System.currentTimeMillis(), text, fromUser))
+        while (messages.size > 500) messages.removeAt(0)
+        memoryStore.saveMessages(messages.toList())
+    }
+
+
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
@@ -248,11 +255,6 @@ private fun HairaApp(
         }
     }
 
-    fun addMessage(text: String, fromUser: Boolean) {
-        messages.add(HairaMessage(System.currentTimeMillis(), text, fromUser))
-        while (messages.size > 500) messages.removeAt(0)
-        memoryStore.saveMessages(messages.toList())
-    }
 
     fun sendMessage() {
         val text = draft.trim()
