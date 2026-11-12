@@ -64,8 +64,6 @@ class MainActivity : ComponentActivity() {
         localModel = LiteRtLocalModelEngine(cacheDir)
         memoryStore = LocalMemoryStore(this)
         toolRegistry = HairaToolRegistry(this)
-        getSharedPreferences("haira_gateway", MODE_PRIVATE).edit().clear().apply()
-        getSharedPreferences("haira_secure", MODE_PRIVATE).edit().clear().apply()
         tts = TextToSpeech(this) { result ->
             ttsReady = result == TextToSpeech.SUCCESS
             if (ttsReady) {
