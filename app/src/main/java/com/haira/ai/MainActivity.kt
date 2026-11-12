@@ -55,6 +55,7 @@ private val Gold = Color(0xFFD7B56D)
 class MainActivity : ComponentActivity() {
     private lateinit var localModel: LiteRtLocalModelEngine
     private lateinit var memoryStore: LocalMemoryStore
+    private lateinit var toolRegistry: HairaToolRegistry
     private var tts: TextToSpeech? = null
     private var ttsReady = false
 
@@ -62,6 +63,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         localModel = LiteRtLocalModelEngine(cacheDir)
         memoryStore = LocalMemoryStore(this)
+        toolRegistry = HairaToolRegistry(this)
         getSharedPreferences("haira_gateway", MODE_PRIVATE).edit().clear().apply()
         getSharedPreferences("haira_secure", MODE_PRIVATE).edit().clear().apply()
         tts = TextToSpeech(this) { result ->
@@ -88,6 +90,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleCommand(raw: String): String? {
+        toolRegistry.execute(raw)?.let { return it }
         val command = raw.lowercase(Locale.ROOT).trim()
         return try {
             when (command) {
@@ -265,6 +268,7 @@ private fun HairaApp(
                     WorkstationScreen(
                         context = context,
                         modelLoaded = modelLoaded,
+                        toolDescriptors = toolRegistry.tools,
                         modelStatus = modelStatus,
                         modelBusy = modelBusy,
                         downloadProgress = downloadProgress,
