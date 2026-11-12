@@ -266,11 +266,11 @@ private fun HairaApp(
             bottomBar = {
                 if (!seriousMode) {
                     NavigationBar(containerColor = Color(0xFF09121E), contentColor = Cyan) {
-                        listOf("HOME", "CHAT", "MEMORY", "MODEL", "GITHUB", "SETTINGS").forEach { item ->
+                        listOf("HOME", "CHAT", "MEMORY", "MORE").forEach { item ->
                             NavigationBarItem(
                                 selected = tab == item,
                                 onClick = { tab = item },
-                                icon = { Text(when (item) { "HOME" -> "⌂"; "CHAT" -> "◌"; "MEMORY" -> "▤"; "MODEL" -> "⬡"; "GITHUB" -> "⌘"; else -> "⚙" }, fontSize = 17.sp) },
+                                icon = { Text(when (item) { "HOME" -> "⌂"; "CHAT" -> "◌"; "MEMORY" -> "▤"; else -> "⋯" }, fontSize = 17.sp) },
                                 label = { Text(item, fontSize = 8.sp, maxLines = 1) },
                                 colors = NavigationBarItemDefaults.colors(selectedIconColor = Cyan, selectedTextColor = Cyan, indicatorColor = Color(0xFF173044), unselectedIconColor = Muted, unselectedTextColor = Muted)
                             )
@@ -349,7 +349,12 @@ private fun HairaApp(
                     })
                     "MODEL" -> ModelScreen(modelPath, modelLoaded, modelBusy, modelStatus, { modelPicker.launch(arrayOf("*/*")) })
                     "GITHUB" -> GitHubManagerScreen()
-                    else -> SettingsScreen(messages.size, memories.size, autoSpeak, { enabled ->
+                    "MORE" -> MoreScreen(
+                        onModels = { tab = "MODEL" },
+                        onGitHub = { tab = "GITHUB" },
+                        onSettings = { tab = "SETTINGS" }
+                    )
+                    "SETTINGS" -> SettingsScreen(messages.size, memories.size, autoSpeak, { enabled ->
                         autoSpeak = enabled
                         context.getSharedPreferences("haira_voice", Context.MODE_PRIVATE).edit().putBoolean("auto_speak", enabled).apply()
                     }, {
