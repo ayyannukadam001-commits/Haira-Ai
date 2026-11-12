@@ -141,8 +141,7 @@ private fun HairaApp(
     speak: (String) -> Unit,
     handleCommand: (String) -> String?,
     toolDescriptors: List<HairaToolDescriptor>,
-    executeLocalTask: (String) -> String?,
-    onOpenExternalPlugin: (String) -> String
+    executeLocalTask: (String) -> String?
 ) {
     val messages = remember { mutableStateListOf<HairaMessage>().apply { addAll(memoryStore.loadMessages()) } }
     val memories = remember { mutableStateListOf<HairaMemory>().apply { addAll(memoryStore.loadMemories()) } }
