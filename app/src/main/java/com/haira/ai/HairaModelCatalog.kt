@@ -93,49 +93,69 @@ object HairaModelDownloadManager {
             offset = 0L
         }
 
-        val connection = (URL(spec.downloadUrl).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 20000
-            readTimeout = 30000
-            instanceFollowRedirects = true
-            setRequestProperty("User-Agent", "HAIRA-AI-Android/1.0.0")
-            if (offset > 0L) setRequestProperty("Range", "bytes=$offset-")
-        }
-
-        try {
-            connection.connect()
-            val code = connection.responseCode
-            require(code == HttpURLConnection.HTTP_OK || code == HttpURLConnection.HTTP_PARTIAL) {
-                "Model download server returned HTTP $code."
-            }
-            val append = offset > 0L && code == HttpURLConnection.HTTP_PARTIAL
-            if (!append) {
-                offset = 0L
-                partial.delete()
-            }
-            val responseLength = connection.contentLengthLong
-            val total = if (append && responseLength > 0L) offset + responseLength else responseLength
-            connection.inputStream.use { input ->
-                FileOutputStream(partial, append).buffered(BUFFER_SIZE).use { output ->
-                    val buffer = ByteArray(BUFFER_SIZE)
-                    var downloaded = offset
-                    var lastReport = 0L
-                    while (true) {
-                        val count = input.read(buffer)
-                        if (count < 0) break
-                        downloaded += count
-                        require(downloaded <= spec.maxBytes) { "Download exceeded the catalog size limit and was stopped." }
-                        output.write(buffer, 0, count)
-                        if (downloaded - lastReport >= 1024 * 1024 || (total > 0L && downloaded == total)) {
-                            onProgress(HairaDownloadProgress(downloaded, total))
-                            lastReport = downloaded
-                        }
-                    }
-                    output.flush()
+        var completed = false
+        var lastFailure: Throwable? = null
+        for (attempt in 1..5) {
+            var connection: HttpURLConnection? = null
+            try {
+                val currentOffset = if (partial.exists()) partial.length() else 0L
+                connection = (URL(spec.downloadUrl).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 45000
+                    readTimeout = 120000
+                    instanceFollowRedirects = true
+                    setRequestProperty("User-Agent", "HAIRA-AI-Android/1.1")
+                    setRequestProperty("Accept-Encoding", "identity")
+                    setRequestProperty("Connection", "keep-alive")
+                    if (currentOffset > 0L) setRequestProperty("Range", "bytes=$currentOffset-")
                 }
+                connection.connect()
+                val code = connection.responseCode
+                require(code == HttpURLConnection.HTTP_OK || code == HttpURLConnection.HTTP_PARTIAL) {
+                    "Model server returned HTTP $code. Retry later or check the model host."
+                }
+                val append = currentOffset > 0L && code == HttpURLConnection.HTTP_PARTIAL
+                if (!append) partial.delete()
+                val responseLength = connection.contentLengthLong
+                val total = if (append && responseLength > 0L) currentOffset + responseLength else responseLength
+                connection.inputStream.use { input ->
+                    FileOutputStream(partial, append).buffered(BUFFER_SIZE).use { output ->
+                        val buffer = ByteArray(BUFFER_SIZE)
+                        var downloaded = if (append) currentOffset else 0L
+                        var lastReport = downloaded
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            output.write(buffer, 0, count)
+                            downloaded += count
+                            require(downloaded <= spec.maxBytes) { "Download exceeded the catalog size limit and was stopped." }
+                            if (downloaded - lastReport >= 1024 * 1024 || (total > 0L && downloaded == total)) {
+                                onProgress(HairaDownloadProgress(downloaded, total))
+                                lastReport = downloaded
+                            }
+                        }
+                        output.flush()
+                    }
+                }
+                if (total > 0L) require(partial.length() >= total) {
+                    "Download connection ended early. Retrying from the saved partial download…"
+                }
+                completed = true
+                lastFailure = null
+                break
+            } catch (error: Throwable) {
+                lastFailure = error
+                if (error is IllegalArgumentException || error is SecurityException) throw error
+                if (attempt == 5) break
+                kotlinx.coroutines.delay(1500L * attempt)
+            } finally {
+                connection?.disconnect()
             }
-        } finally {
-            connection.disconnect()
         }
+        if (!completed) throw java.io.IOException(
+            "Model download failed after 5 attempts. Partial data is saved; reopen HAIRA on stable Wi-Fi to resume. Cause: " +
+                (lastFailure?.message ?: "connection interrupted"),
+            lastFailure
+        )
 
         require(partial.length() > 0L) { "The model download was empty." }
         val actualHash = sha256(partial)
