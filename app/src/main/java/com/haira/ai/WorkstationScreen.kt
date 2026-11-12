@@ -171,7 +171,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
                         val title = newTask.trim()
                         if (title.isNotEmpty()) {
                             val dir = File(workspace, "tasks").apply { mkdirs() }
-                            File(dir, "task-" + System.currentTimeMillis() + ".task").writeText(title + "\\nQUEUED")
+                            File(dir, "task-" + System.currentTimeMillis() + ".task").writeText(title + "\nQUEUED")
                             newTask = ""; refresh(); status = "Task queued. Press RUN when ready."
                         }
                     }, enabled = newTask.isNotBlank()) { Text("ADD TO QUEUE", fontSize = 9.sp) }
@@ -187,13 +187,13 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
                                         val dir = File(workspace, "tasks")
                                         val f = dir.listFiles()?.firstOrNull { runCatching { it.readLines().firstOrNull() == task.first }.getOrDefault(false) }
                                         if (f != null) {
-                                            f.writeText(task.first + "\\nRUNNING")
+                                            f.writeText(task.first + "\nRUNNING")
                                             val result = onExecuteTask(task.first)
                                             if (result == null) {
-                                                f.writeText(task.first + "\\nFAILED")
+                                                f.writeText(task.first + "\nFAILED")
                                                 status = "Unsupported command. Use one of the listed local tool commands."
                                             } else {
-                                                f.writeText(task.first + "\\nDONE")
+                                                f.writeText(task.first + "\nDONE")
                                                 status = result
                                             }
                                             refresh()
