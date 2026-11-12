@@ -1,7 +1,14 @@
 name: Build HAIRA Android APK
 on:
   push:
-    branches: [ "main", "feature/haira-part1-core-v0.6.0", "feature/haira-part2-workstation-v0.7.0", "feature/haira-part3-self-setup-v0.8.0", "feature/haira-part4-task-engine-v0.9.0", "feature/haira-part5-bundled-model-v1.0.0" ]
+    branches:
+      - "main"
+      - "feature/haira-part1-core-v0.6.0"
+      - "feature/haira-part2-workstation-v0.7.0"
+      - "feature/haira-part3-self-setup-v0.8.0"
+      - "feature/haira-part4-task-engine-v0.9.0"
+      - "feature/haira-part5-bundled-model-v1.0.0"
+      - "feature/haira-hybrid-redesign-v1.1.0"
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
@@ -29,9 +36,11 @@ jobs:
         run: gradle --no-daemon assembleDebug
       - name: Verify APK exists
         run: test -f app/build/outputs/apk/debug/app-debug.apk
+      - name: Report APK size
+        run: du -h app/build/outputs/apk/debug/app-debug.apk
       - name: Upload APK artifact
         uses: actions/upload-artifact@v7
         with:
-          name: HAIRA-debug-APK-v1.0.0-Part5
+          name: HAIRA-debug-APK-v1.1.0
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
