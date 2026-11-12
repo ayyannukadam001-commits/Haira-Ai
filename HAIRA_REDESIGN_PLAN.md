@@ -21,10 +21,10 @@
 - The current LiteRT engine cannot load arbitrary GGUF files.
 
 ### Candidate A — Gemma 3 1B INT4 QAT
-- Candidate size reported by the LiteRT Community model card: about 529 MB.
-- Intended runtime: LiteRT-LM.
+- The dynamic-int4 QAT benchmark entry is about 529 MB and links to a MediaPipe .task artifact; the repository lists the corresponding .task file at about 555 MB.
+- The LiteRT-LM-compatible .litertlm variant is about 584 MB, not 529 MB. The current HAIRA engine loads .litertlm, so using the 529 MB QAT artifact would require a MediaPipe runtime path instead.
 - The Hugging Face repository is gated and requires a logged-in user to accept the Gemma license before downloading.
-- Before adding automatic in-app download, verify the exact .litertlm artifact, its checksum, and whether the accepted-license flow can be handled without asking the user to paste a private token into HAIRA.
+- Before adding automatic in-app download, choose the exact runtime/artifact pair, verify its checksum, and decide how the license acceptance is handled without asking the user to paste a private token into HAIRA.
 - Samsung S24 Ultra benchmark figures are not Redmi 13 5G benchmarks.
 
 ### Candidate B — NanoLM-0.3B-Instruct-v1.1 Q4_K_M
