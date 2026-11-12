@@ -146,6 +146,7 @@ private fun HairaApp(
     var modelPath by remember { mutableStateOf(initialModelPath.orEmpty()) }
     var modelLoaded by remember { mutableStateOf(false) }
     var modelBusy by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf(0f) }
     var modelStatus by remember { mutableStateOf(if (initialModelPath.isNullOrBlank()) "No local model imported yet." else "Checking saved model…") }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -265,6 +266,33 @@ private fun HairaApp(
                         context = context,
                         modelLoaded = modelLoaded,
                         modelStatus = modelStatus,
+                        downloadProgress = downloadProgress,
+                        onDownloadStarterModel = {
+                            if (!modelBusy) scope.launch {
+                                modelBusy = true
+                                downloadProgress = 0f
+                                modelStatus = "Preparing verified model download…"
+                                try {
+                                    val downloaded = HairaModelDownloadManager.download(context, HairaModelCatalog.starter) { progress ->
+                                        scope.launch {
+                                            downloadProgress = progress.fraction
+                                            val percent = (progress.fraction * 100f).toInt()
+                                            modelStatus = if (progress.total > 0L) "Downloading starter model: $percent%" else "Downloading starter model…"
+                                        }
+                                    }
+                                    modelStatus = "Download verified. Loading local model on CPU…"
+                                    withContext(Dispatchers.IO) { modelEngine.load(downloaded) }
+                                    modelPath = downloaded.absolutePath
+                                    rememberModel(downloaded.absolutePath)
+                                    modelLoaded = true
+                                    modelStatus = "Local model ready: " + downloaded.name
+                                } catch (error: Throwable) {
+                                    modelStatus = "Self-setup stopped: " + (error.message ?: "Unknown error")
+                                } finally {
+                                    modelBusy = false
+                                }
+                            }
+                        },
                         onOpenModel = { seriousMode = false; tab = "MODEL" },
                         onReturnNormal = { seriousMode = false }
                     )
