@@ -252,11 +252,11 @@ private fun HairaApp(
             bottomBar = {
                 if (!seriousMode) {
                     NavigationBar(containerColor = Color(0xFF09121E), contentColor = Cyan) {
-                        listOf("HOME", "CHAT", "WORKSPACE", "MODELS", "MEMORY", "SETTINGS").forEach { item ->
+                        listOf("HOME", "CHAT", "MODELS", "MEMORY", "SETTINGS").forEach { item ->
                             NavigationBarItem(
                                 selected = tab == item,
-                                onClick = { if (item == "WORKSPACE") seriousMode = true else tab = item },
-                                icon = { Text(when (item) { "HOME" -> "⌂"; "CHAT" -> "◌"; "WORKSPACE" -> "▦"; "MODELS" -> "⬡"; "MEMORY" -> "▤"; else -> "⚙" }, fontSize = 17.sp) },
+                                onClick = { tab = item },
+                                icon = { Text(when (item) { "HOME" -> "⌂"; "CHAT" -> "◌"; "MODELS" -> "⬡"; "MEMORY" -> "▤"; else -> "⚙" }, fontSize = 17.sp) },
                                 label = { Text(item, fontSize = 8.sp, maxLines = 1) },
                                 colors = NavigationBarItemDefaults.colors(selectedIconColor = Cyan, selectedTextColor = Cyan, indicatorColor = Color(0xFF173044), unselectedIconColor = Muted, unselectedTextColor = Muted)
                             )
