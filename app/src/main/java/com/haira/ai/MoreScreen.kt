@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.sp
 fun MoreScreen(
     onModels: () -> Unit,
     onGitHub: () -> Unit,
+    onExternal: () -> Unit,
     onSettings: () -> Unit
 ) {
     Column(
@@ -29,6 +30,12 @@ fun MoreScreen(
             detail = "Local model status, model setup and supported model management.",
             symbol = "⬡",
             onClick = onModels
+        )
+        MoreDestination(
+            title = "EXTERNAL MODEL ACCESS",
+            detail = "Check public model directories and whether hosted AI inference needs a key.",
+            symbol = "⇄",
+            onClick = onExternal
         )
         MoreDestination(
             title = "GITHUB MANAGER",
