@@ -65,8 +65,6 @@ class MainActivity : ComponentActivity() {
         localModel = LiteRtLocalModelEngine(cacheDir)
         memoryStore = LocalMemoryStore(this)
         toolRegistry = HairaToolRegistry(this)
-        getSharedPreferences("haira_gateway", MODE_PRIVATE).edit().clear().apply()
-        getSharedPreferences("haira_secure", MODE_PRIVATE).edit().clear().apply()
         tts = TextToSpeech(this) { result ->
             ttsReady = result == TextToSpeech.SUCCESS
             if (ttsReady) {
@@ -88,19 +86,6 @@ class MainActivity : ComponentActivity() {
                 handleCommand = ::handleCommand,
                 toolDescriptors = toolRegistry.tools,
                 executeLocalTask = toolRegistry::execute,
-                onOpenExternalPlugin = { id ->
-                    val url = when (id) {
-                        "gmail" -> "https://mail.google.com/"
-                        "drive" -> "https://drive.google.com/"
-                        else -> null
-                    }
-                    if (url == null) {
-                        "Unknown external integration."
-                    } else {
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                        "Opened the official website. Full account-data access is not connected."
-                    }
-                }
             )
         }
     }
@@ -155,7 +140,6 @@ private fun HairaApp(
     handleCommand: (String) -> String?,
     toolDescriptors: List<HairaToolDescriptor>,
     executeLocalTask: (String) -> String?,
-    onOpenExternalPlugin: (String) -> String
 ) {
     val messages = remember { mutableStateListOf<HairaMessage>().apply { addAll(memoryStore.loadMessages()) } }
     val memories = remember { mutableStateListOf<HairaMemory>().apply { addAll(memoryStore.loadMemories()) } }
@@ -322,7 +306,6 @@ private fun HairaApp(
                         onOpenModel = { seriousMode = false; tab = "MODEL" },
                         onReturnNormal = { seriousMode = false },
                         onExecuteTask = executeLocalTask,
-                        onOpenExternalPlugin = onOpenExternalPlugin
                     )
                 } else when (tab) {
                     "HOME" -> HomeScreen(messages.size, memories.size, modelLoaded, modelStatus) { tab = "CHAT" }
@@ -349,6 +332,7 @@ private fun HairaApp(
                     })
                     "MODEL" -> ModelScreen(modelPath, modelLoaded, modelBusy, modelStatus, { modelPicker.launch(arrayOf("*/*")) })
                     "GITHUB" -> GitHubManagerScreen()
+                    "EXTERNAL" -> ExternalModelAccessScreen()
                     "MORE" -> MoreScreen(
                         onModels = { tab = "MODEL" },
                         onGitHub = { tab = "GITHUB" },
