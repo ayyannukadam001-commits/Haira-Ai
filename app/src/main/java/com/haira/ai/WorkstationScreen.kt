@@ -38,6 +38,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
     var fileName by remember { mutableStateOf("untitled.kt") }
     var newTask by remember { mutableStateOf("") }
     var tasks by remember { mutableStateOf(emptyList<WorkTask>()) }
+    var executingTaskId by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf("Private local workspace ready.") }
     val taskScope = rememberCoroutineScope()
 
@@ -46,7 +47,12 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
         tasks = File(workspace, "tasks").listFiles()?.filter { it.extension == "task" }?.mapNotNull { f ->
             val lines = runCatching { f.readLines() }.getOrNull() ?: return@mapNotNull null
             val title = lines.firstOrNull().orEmpty()
-            if (title.isBlank()) null else WorkTask(f.name, title, lines.getOrNull(1) ?: "QUEUED")
+            if (title.isBlank()) null else {
+                val storedState = lines.getOrNull(1) ?: "QUEUED"
+                val safeState = if (storedState == "RUNNING") "INTERRUPTED" else storedState
+                if (safeState != storedState) runCatching { f.writeText(title + "\n" + safeState) }
+                WorkTask(f.name, title, safeState)
+            }
         } ?: emptyList()
     }
     LaunchedEffect(Unit) { refresh() }
@@ -187,28 +193,33 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
                                 Row(Modifier.fillMaxWidth().padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f)) {
                                         Text(task.title, color = Color.White, fontSize = 10.sp)
-                                        Text(task.state, color = if (task.state == "DONE") Color(0xFF8BE0B0) else if (task.state == "FAILED") Color(0xFFFF8A80) else WorkGold, fontSize = 8.sp)
+                                        Text(task.state, color = if (task.state == "DONE") Color(0xFF8BE0B0) else if (task.state == "FAILED" || task.state == "INTERRUPTED") Color(0xFFFF8A80) else WorkGold, fontSize = 8.sp)
                                     }
-                                    if (task.state != "DONE" && task.state != "RUNNING") TextButton(onClick = {
+                                    if (task.state != "DONE" && task.state != "RUNNING") TextButton(enabled = executingTaskId == null, onClick = {
                                         val dir = File(workspace, "tasks")
                                         val f = File(dir, task.id).takeIf { it.isFile }
                                         if (f != null) {
                                             tasks = tasks.map { if (it.id == task.id) it.copy(state = "RUNNING") else it }
                                             taskScope.launch {
-                                                val execution = withContext(Dispatchers.IO) {
-                                                    runCatching {
-                                                        f.writeText(task.title + "\nRUNNING")
-                                                        onExecuteTask(task.title)
+                                                executingTaskId = task.id
+                                                try {
+                                                    val execution = withContext(Dispatchers.IO) {
+                                                        runCatching {
+                                                            f.writeText(task.title + "\nRUNNING")
+                                                            onExecuteTask(task.title)
+                                                        }
                                                     }
+                                                    withContext(Dispatchers.IO) {
+                                                        f.writeText(task.title + "\n" + if (execution.getOrNull() == null) "FAILED" else "DONE")
+                                                    }
+                                                    status = execution.fold(
+                                                        onSuccess = { it ?: "Unsupported command. Use one of the listed local tool commands." },
+                                                        onFailure = { "Task failed: " + (it.message ?: "Unknown error") }
+                                                    )
+                                                    refresh()
+                                                } finally {
+                                                    executingTaskId = null
                                                 }
-                                                withContext(Dispatchers.IO) {
-                                                    f.writeText(task.title + "\n" + if (execution.getOrNull() == null) "FAILED" else "DONE")
-                                                }
-                                                status = execution.fold(
-                                                    onSuccess = { it ?: "Unsupported command. Use one of the listed local tool commands." },
-                                                    onFailure = { "Task failed: " + (it.message ?: "Unknown error") }
-                                                )
-                                                refresh()
                                             }
                                         }
                                     }) { Text("RUN", color = WorkCyan, fontSize = 8.sp) }
