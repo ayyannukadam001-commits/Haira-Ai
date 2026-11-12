@@ -57,18 +57,20 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
     }
     LaunchedEffect(Unit) { refresh() }
 
-    Row(Modifier.fillMaxSize().background(WorkBg).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Column(Modifier.width(150.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("HAIRA", color = WorkCyan, fontSize = 21.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
-            Text("SERIOUS MODE", color = WorkGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val compactWidth = maxWidth < 600.dp
+    Row(Modifier.fillMaxSize().background(WorkBg).padding(if (compactWidth) 6.dp else 10.dp), horizontalArrangement = Arrangement.spacedBy(if (compactWidth) 5.dp else 10.dp)) {
+        Column(Modifier.width(if (compactWidth) 82.dp else 150.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(if (compactWidth) 3.dp else 6.dp)) {
+            Text("HAIRA", color = WorkCyan, fontSize = if (compactWidth) 15.sp else 21.sp, fontWeight = FontWeight.Black, letterSpacing = if (compactWidth) 1.sp else 2.sp)
+            Text("SERIOUS MODE", color = WorkGold, fontSize = if (compactWidth) 6.sp else 9.sp, fontWeight = FontWeight.Bold)
             HorizontalDivider(color = WorkCyan.copy(alpha = 0.25f))
             listOf("OVERVIEW", "SELF SETUP", "MODEL HUB", "TOOLS", "FILES", "CODE", "RESEARCH", "TASK QUEUE", "GITHUB").forEach { item ->
                 TextButton(onClick = { section = item }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(5.dp)) {
-                    Text((if (section == item) "▸ " else "") + item, color = if (section == item) WorkCyan else WorkMuted, fontSize = 9.sp)
+                    Text((if (section == item) "▸ " else "") + item, color = if (section == item) WorkCyan else WorkMuted, fontSize = if (compactWidth) 6.sp else 9.sp, maxLines = 1, softWrap = false)
                 }
             }
             Spacer(Modifier.weight(1f))
-            OutlinedButton(onClick = onReturnNormal, modifier = Modifier.fillMaxWidth()) { Text("NORMAL MODE", fontSize = 9.sp) }
+            OutlinedButton(onClick = onReturnNormal, modifier = Modifier.fillMaxWidth()) { Text(if (compactWidth) "NORMAL" else "NORMAL MODE", fontSize = if (compactWidth) 7.sp else 9.sp, maxLines = 1) }
             Text("PRIVATE LOCAL WORKSPACE", color = WorkMuted, fontSize = 7.sp)
         }
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -248,6 +250,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
                 "GITHUB" -> GitHubManagerScreen()
             }
         }
+    }
     }
 }
 
