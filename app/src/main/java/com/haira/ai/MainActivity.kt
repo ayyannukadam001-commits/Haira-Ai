@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.File
+import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -191,20 +192,22 @@ private fun HairaApp(
     }
 
     LaunchedEffect(initialModelPath) {
-        val saved = initialModelPath?.let { File(it) }
-        if (saved != null && saved.isFile && saved.length() > 0L) {
-            modelBusy = true
-            modelStatus = "Loading saved model on CPU…"
-            try {
-                withContext(Dispatchers.IO) { modelEngine.load(saved) }
-                modelLoaded = true
-                modelPath = saved.absolutePath
-                modelStatus = "Local model ready: " + saved.name
-            } catch (error: Throwable) {
-                modelStatus = "Saved model load failed: " + (error.message ?: "Unknown error")
-            } finally {
-                modelBusy = false
-            }
+        modelBusy = true
+        try {
+            val saved = initialModelPath?.let { File(it) }?.takeIf { it.isFile && it.length() > 0L }
+            val selected = saved ?: copyBundledModel(context)
+            modelStatus = if (saved == null) "Bundled model found. Preparing local setup…" else "Loading saved model on CPU…"
+            withContext(Dispatchers.IO) { modelEngine.load(selected) }
+            modelLoaded = true
+            modelPath = selected.absolutePath
+            rememberModel(selected.absolutePath)
+            modelStatus = "Local model ready: " + selected.name
+        } catch (error: Throwable) {
+            modelLoaded = false
+            modelStatus = "Automatic model setup unavailable: " + (error.message ?: "Unknown error") +
+                ". If this is a development build without the bundled asset, use the model import option."
+        } finally {
+            modelBusy = false
         }
     }
 
@@ -226,7 +229,7 @@ private fun HairaApp(
             return
         }
         if (!modelLoaded) {
-            val reply = "Mera local AI model abhi load nahi hai. MODEL tab kholo aur compatible .litertlm file import karo. Chat history, memory vault, device TTS aur supported phone shortcuts local kaam karte hain; general AI chat ke liye model zaroori hai."
+            val reply = "HAIRA ka bundled local AI model abhi ready nahi hua. Model status check karo; agar automatic setup available nahi hai to Serious Mode > Self Setup me retry karo. Chat history, memory aur supported phone shortcuts alag se available hain."
             addMessage(reply, false)
             if (autoSpeak) speak(reply)
             return
@@ -348,6 +351,39 @@ private fun HairaApp(
     }
 }
 
+private suspend fun copyBundledModel(context: Context): File = withContext(Dispatchers.IO) {
+    val directory = File(context.filesDir, "models").apply { mkdirs() }
+    val target = File(directory, HairaModelCatalog.starter.fileName)
+    fun hash(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().buffered(256 * 1024).use { input ->
+            val buffer = ByteArray(256 * 1024)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest().joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
+    }
+    if (target.isFile && target.length() > 0L && hash(target).equals(HairaModelCatalog.starter.sha256, true)) {
+        return@withContext target
+    }
+    val temporary = File(directory, target.name + ".bundled-part")
+    temporary.delete()
+    context.assets.open("models/" + HairaModelCatalog.starter.fileName).buffered(256 * 1024).use { input ->
+        temporary.outputStream().buffered(256 * 1024).use { output -> input.copyTo(output, 256 * 1024) }
+    }
+    require(temporary.length() > 0L) { "Bundled model asset is empty." }
+    require(hash(temporary).equals(HairaModelCatalog.starter.sha256, true)) {
+        temporary.delete()
+        "Bundled model checksum verification failed."
+    }
+    if (target.exists()) target.delete()
+    check(temporary.renameTo(target)) { "Could not install the bundled model into private storage." }
+    target
+}
+
 private suspend fun copyModelIntoPrivateStorage(context: Context, uri: Uri): File = withContext(Dispatchers.IO) {
     val name = queryDisplayName(context, uri)
     require(name.endsWith(".litertlm", ignoreCase = true)) { "Choose a compatible .litertlm model file." }
@@ -388,7 +424,7 @@ private fun HairaHeader(modelLoaded: Boolean, onEnterSerious: () -> Unit) {
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(if (modelLoaded) "LOCAL AI READY" else "MODEL NOT LOADED", color = if (modelLoaded) Color(0xFF8BE0B0) else Gold, fontSize = 7.sp, fontWeight = FontWeight.Bold)
-            Text("BUILD 0.8.0", color = Muted, fontSize = 8.sp)
+            Text("BUILD 1.0.0", color = Muted, fontSize = 8.sp)
         }
         TextButton(onClick = onEnterSerious, contentPadding = PaddingValues(horizontal = 7.dp, vertical = 3.dp)) {
             Text("WORK MODE", color = Cyan, fontSize = 8.sp, fontWeight = FontWeight.Bold)
@@ -429,7 +465,7 @@ private fun HomeScreen(messageCount: Int, memoryCount: Int, modelLoaded: Boolean
                 StatusCard("AI CONNECTION", "OFFLINE", "no cloud AI API", Modifier.weight(1f))
             }
         }
-        item { SettingRow("On-device inference", "LiteRT-LM runtime • CPU backend • model imported separately") }
+        item { SettingRow("On-device inference", "LiteRT-LM runtime • CPU backend • bundled local model") }
         item { SettingRow("Privacy", "Chat history and pinned memories stay in app-private storage") }
         item { SettingRow("Voice input", "Android speech recognizer • offline availability depends on installed speech service") }
     }
@@ -472,7 +508,7 @@ private fun ChatScreen(messages: List<HairaMessage>, draft: String, onDraft: (St
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("◉", color = Cyan, fontSize = 40.sp)
                     Text("Hello, Sir ji", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Import a local model to enable AI chat.", color = Muted, fontSize = 10.sp)
+                    Text("HAIRA installs its bundled local model automatically on first launch.", color = Muted, fontSize = 10.sp)
                 }
             }
         } else {
@@ -549,8 +585,8 @@ private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: St
             }
         }
         SettingRow("Runtime", "Google LiteRT-LM • CPU backend")
-        SettingRow("Model format", "Compatible .litertlm file")
-        SettingRow("Storage", "Model copied to HAIRA private storage; not bundled inside APK")
+        SettingRow("Model format", "Bundled Qwen3 .litertlm model")
+        SettingRow("Storage", "Qwen3 0.6B is bundled in this APK and copied to private storage on first launch")
         SettingRow("AI network", "Inference runs locally. No AI API key or remote AI endpoint.")
         SettingRow("Device limits", "Model files may be large. Speed and stability depend on model size, free RAM, heat and storage. Start with a small model.")
         Text("A model file is required for general AI chat. Without one, chat history, pinned memories, device TTS and listed Android shortcuts remain available.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
