@@ -213,7 +213,7 @@ private fun HairaApp(
         } catch (error: Throwable) {
             modelLoaded = false
             modelStatus = "Automatic model setup unavailable: " + (error.message ?: "Unknown error") +
-                ". If this is a development build without the bundled asset, use the model import option."
+                ". Check Wi-Fi and storage, then retry in Work Mode > Self Setup or import a compatible .litertlm file."
         } finally {
             modelBusy = false
         }
@@ -561,7 +561,7 @@ private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: St
         SettingRow("Runtime", "Google LiteRT-LM • CPU backend")
         SettingRow("Model format", "Bundled Qwen3 .litertlm model")
         SettingRow("Storage", "Qwen3 0.6B downloads over Wi-Fi on first launch and is stored in private app storage")
-        SettingRow("AI network", "Local inference is the default. External inference is optional and requires a verified provider access method.")
+        SettingRow("AI network", "Local inference is the default. External inference is optional; no provider is contacted until its access method is verified and enabled.")
         SettingRow("Device limits", "Model files may be large. Speed and stability depend on model size, free RAM, heat and storage. Start with a small model.")
         Text("LOCAL MODEL CANDIDATES", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
         HairaIntelligenceCatalog.localCandidates.forEach { candidate ->
