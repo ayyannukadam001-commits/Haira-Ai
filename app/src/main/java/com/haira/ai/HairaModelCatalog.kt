@@ -33,7 +33,7 @@ object HairaModelCatalog {
     val starter = HairaModelSpec(
         id = "qwen3-0.6b-litertlm",
         name = "Qwen3 0.6B (LiteRT-LM)",
-        description = "614 MB starter text model. CPU speed and compatibility vary by phone.",
+        description = "586 MB bundled starter text model. CPU speed and compatibility vary by phone.",
         fileName = "Qwen3-0.6B.litertlm",
         downloadUrl = "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/Qwen3-0.6B.litertlm",
         maxBytes = 900L * 1024L * 1024L,
@@ -83,7 +83,7 @@ object HairaModelDownloadManager {
             connectTimeout = 20000
             readTimeout = 30000
             instanceFollowRedirects = true
-            setRequestProperty("User-Agent", "HAIRA-AI-Android/0.8.0")
+            setRequestProperty("User-Agent", "HAIRA-AI-Android/1.0.0")
             if (offset > 0L) setRequestProperty("Range", "bytes=$offset-")
         }
 
