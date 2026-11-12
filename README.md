@@ -33,3 +33,12 @@ Part 1 core chat/runtime, Part 2 workstation and local project tools, Part 3 ver
 - Only reviewed local tools can execute. No arbitrary shell commands, downloaded executable code, silent app installs, root access, or permission bypass.
 - Task execution remains user-started and foreground-only.
 - Heavy image/video/3D generation remains constrained by phone RAM, storage, thermal limits, and compatible local models.
+
+
+## Plugin Center (v1.0.0 update)
+
+Serious Mode includes a Plugin Center with per-plugin enable/disable controls for reviewed local workspace tools (file listing, notes, search, project scaffolding). Enable states are stored locally on the device and disabled plugins reject their matching chat commands.
+
+Gmail and Google Drive entries are external web shortcuts only: they open the official websites in the browser. Authentication happens directly with Google. HAIRA does not collect passwords, access account contents, or claim OAuth/API integration. Full Gmail/Drive data access would require a separate reviewed Google OAuth implementation and explicit consent.
+
+Only reviewed app-bundled plugin code is executable. This version does not install arbitrary plugin packages or run downloaded code. App version remains 1.0.0 (versionCode 12).
