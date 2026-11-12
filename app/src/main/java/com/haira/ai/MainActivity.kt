@@ -3,6 +3,7 @@ package com.haira.ai
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
@@ -137,6 +138,7 @@ private fun HairaApp(
     val messages = remember { mutableStateListOf<HairaMessage>().apply { addAll(memoryStore.loadMessages()) } }
     val memories = remember { mutableStateListOf<HairaMemory>().apply { addAll(memoryStore.loadMemories()) } }
     var tab by remember { mutableStateOf("HOME") }
+    var seriousMode by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf("") }
     var search by remember { mutableStateOf("") }
     var memoryDraft by remember { mutableStateOf("") }
@@ -147,6 +149,10 @@ private fun HairaApp(
     var modelStatus by remember { mutableStateOf(if (initialModelPath.isNullOrBlank()) "No local model imported yet." else "Checking saved model…") }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    SideEffect {
+        (context as? Activity)?.requestedOrientation = if (seriousMode) ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    }
 
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -251,8 +257,16 @@ private fun HairaApp(
                     .background(Brush.verticalGradient(listOf(Color(0xFF0C1D2B), Bg, Color(0xFF070B13))))
                     .padding(horizontal = 15.dp)
             ) {
-                HairaHeader(modelLoaded)
-                when (tab) {
+                HairaHeader(modelLoaded) { seriousMode = true }
+                if (seriousMode) {
+                    WorkstationScreen(
+                        context = context,
+                        modelLoaded = modelLoaded,
+                        modelStatus = modelStatus,
+                        onOpenModel = { seriousMode = false; tab = "MODEL" },
+                        onReturnNormal = { seriousMode = false }
+                    )
+                } else when (tab) {
                     "HOME" -> HomeScreen(messages.size, memories.size, modelLoaded, modelStatus) { tab = "CHAT" }
                     "CHAT" -> ChatScreen(messages, draft, { draft = it }, { sendMessage() }, {
                         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -322,7 +336,7 @@ private fun queryDisplayName(context: Context, uri: Uri): String {
 }
 
 @Composable
-private fun HairaHeader(modelLoaded: Boolean) {
+private fun HairaHeader(modelLoaded: Boolean, onEnterSerious: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 9.dp), verticalAlignment = Alignment.CenterVertically) {
         Surface(color = Color(0xFF092438), shape = RoundedCornerShape(12.dp), modifier = Modifier.size(40.dp)) {
             Box(contentAlignment = Alignment.Center) { Text("H", color = Cyan, fontSize = 24.sp, fontWeight = FontWeight.Black) }
@@ -334,7 +348,10 @@ private fun HairaHeader(modelLoaded: Boolean) {
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(if (modelLoaded) "LOCAL AI READY" else "MODEL NOT LOADED", color = if (modelLoaded) Color(0xFF8BE0B0) else Gold, fontSize = 7.sp, fontWeight = FontWeight.Bold)
-            Text("BUILD 0.6.0", color = Muted, fontSize = 8.sp)
+            Text("BUILD 0.7.0", color = Muted, fontSize = 8.sp)
+        }
+        TextButton(onClick = onEnterSerious, contentPadding = PaddingValues(horizontal = 7.dp, vertical = 3.dp)) {
+            Text("WORK MODE", color = Cyan, fontSize = 8.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
