@@ -65,3 +65,25 @@ object HairaIntelligenceCatalog {
         "Unknown — not yet verified"
     )
 }
+
+data class HairaExternalProvider(
+    val id: String,
+    val name: String,
+    val access: String,
+    val notes: String
+)
+
+object HairaExternalProviderCatalog {
+    // Only providers whose official documentation explicitly describes the
+    // authentication method are listed. Public model pages do not imply free inference.
+    val providers = listOf(
+        HairaExternalProvider(
+            id = "huggingface-inference",
+            name = "Hugging Face Inference Providers",
+            access = "Hugging Face user token required",
+            notes = "Free credits may be available, but inference requests still require a token. This is not a no-key service."
+        )
+    )
+
+    val noKeyVerifiedProviders: List<HairaExternalProvider> = emptyList()
+}
