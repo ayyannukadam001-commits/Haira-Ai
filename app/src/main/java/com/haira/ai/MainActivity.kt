@@ -221,6 +221,7 @@ private fun HairaApp(
         gatewayClient.send(gatewayConfig, history) { result ->
             busy = false
             val reply = result.getOrElse { error -> "AI connection error: ${error.message ?: "Unknown error"}" }
+            gatewayStatus = if (result.isSuccess) "Gateway reachable • live chat response received" else "Chat request failed: ${result.exceptionOrNull()?.message ?: "Unknown error"}"
             val last = messages.lastOrNull()
             if (last != null && !last.fromUser) {
                 messages = messages.dropLast(1) + last.copy(text = reply)
@@ -281,7 +282,7 @@ private fun HairaApp(
                                 gatewayClient.testConnection(gatewayConfig) { result ->
                                     gatewayBusy = false
                                     gatewayStatus = result.fold(
-                                        { models -> if (models.isEmpty()) "Connected, but no models were listed" else "Connected • ${models.size} models found: ${models.take(4).joinToString()}" },
+                                        { models -> if (models.isEmpty()) "Gateway reachable, but no models were listed" else "Gateway reachable • ${models.size} models found: ${models.take(4).joinToString()} (send a chat to verify inference)" },
                                         { error -> "Connection failed: ${error.message ?: "Unknown error"}" }
                                     )
                                 }
@@ -311,7 +312,7 @@ private fun Header() {
 
 @Composable
 private fun HomeScreen(messageCount: Int, gatewayStatus: String, onChat: () -> Unit) {
-    val connected = gatewayStatus.startsWith("Connected")
+    val connected = gatewayStatus.startsWith("Gateway reachable")
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 18.dp),
@@ -621,7 +622,7 @@ private fun SettingsScreen(
                 )
                 Text("FreeLLMAPI normally needs its unified key. OmniRoute can allow keyless local routing when its server is configured that way. Provider credentials, if required, are configured in the gateway dashboard — not here.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
                 Text("For same-phone Termux setups, 127.0.0.1 points to this phone. For a gateway running on another device, enter that device's reachable LAN address. Use HTTPS for remote servers; plain HTTP can expose your key on an untrusted network.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
-                Text(status, color = if (status.startsWith("Connected") || status.startsWith("Settings saved")) Color(0xFF8BE0B0) else Color(0xFFFFC477), fontSize = 10.sp, lineHeight = 15.sp)
+                Text(status, color = if (status.startsWith("Gateway reachable") || status.startsWith("Settings saved")) Color(0xFF8BE0B0) else Color(0xFFFFC477), fontSize = 10.sp, lineHeight = 15.sp)
                 Button(onClick = onSave, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
                     Text("SAVE GATEWAY SETTINGS")
                 }
