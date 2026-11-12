@@ -162,8 +162,39 @@ private fun HairaApp(
 
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-            if (!spoken.isNullOrBlank()) draft = listOf(draft.trim(), spoken).filter { it.isNotBlank() }.joinToString(" ")
+            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
+            if (!spoken.isNullOrBlank()) {
+                val voiceCommand = spoken.lowercase(Locale.ROOT).replace(Regex("\\s+"), " ").trim()
+                val enterWorkMode = voiceCommand in setOf(
+                    "activate work mode", "open work mode", "work mode", "landscape mode",
+                    "activate landscape mode", "activate landscape", "switch to landscape",
+                    "switch to landscape mode", "landscape on", "workstation kholo",
+                    "work mode kholo", "landscape kholo", "landscape mode on karo",
+                    "serious mode", "serious mode on", "haira work mode", "haira landscape mode"
+                )
+                val exitWorkMode = voiceCommand in setOf(
+                    "normal mode", "exit work mode", "close work mode", "portrait mode",
+                    "switch to portrait", "landscape off", "work mode band karo",
+                    "normal mode chalu karo", "portrait kholo"
+                )
+                when {
+                    enterWorkMode -> {
+                        addMessage(spoken, true)
+                        seriousMode = true
+                        val reply = "Voice command accepted. HAIRA Work Mode landscape dashboard is opening."
+                        addMessage(reply, false)
+                        if (autoSpeak) speak(reply)
+                    }
+                    exitWorkMode -> {
+                        addMessage(spoken, true)
+                        seriousMode = false
+                        val reply = "Voice command accepted. HAIRA Normal Mode is active."
+                        addMessage(reply, false)
+                        if (autoSpeak) speak(reply)
+                    }
+                    else -> draft = listOf(draft.trim(), spoken).filter { it.isNotBlank() }.joinToString(" ")
+                }
+            }
         }
     }
 
@@ -230,7 +261,7 @@ private fun HairaApp(
         addMessage(text, true)
         val normalizedCommand = text.lowercase(Locale.ROOT).trim().replace(Regex("\\s+"), " ")
         val appCommandReply: String? = when {
-            normalizedCommand in setOf("activate work mode", "open work mode", "work mode", "landscape mode", "activate landscape mode", "switch to landscape", "serious mode", "work mode kholo", "landscape mode on karo", "landscape kholo", "work mode chalu karo") -> {
+            normalizedCommand in setOf("activate work mode", "open work mode", "work mode", "landscape mode", "activate landscape mode", "activate landscape", "switch to landscape", "switch to landscape mode", "landscape on", "serious mode", "serious mode on", "workstation kholo", "haira work mode", "haira landscape mode", "work mode kholo", "landscape mode on karo", "landscape kholo", "work mode chalu karo") -> {
                 seriousMode = true
                 "Work Mode activate ho raha hai. HAIRA landscape dashboard khul raha hai."
             }
@@ -264,7 +295,7 @@ private fun HairaApp(
                 "Automatic voice replies OFF. Ab replies text mein aayenge."
             }
             normalizedCommand in setOf("help", "commands", "show commands", "command list", "commands dikhao", "haira commands") -> {
-                "HAIRA commands:\n• Activate Work Mode / Landscape Mode\n• Normal Mode / Exit Work Mode\n• Open Home, Chat, Memory, Models, Settings\n• Voice On / Voice Off\n• Save memory: your note\n• Search memory: keyword\n• Create note: title\n• Create project: name\n• List workspace files\n• Open YouTube / Open Camera / Open Settings"
+                "HAIRA COMMANDS (type or speak):\n• Activate Work Mode / Landscape Mode / Landscape On / Workstation Kholo\n• Normal Mode / Exit Work Mode / Portrait Mode\n• Open Home, Chat, Memory, Models, Settings\n• Voice On / Voice Off\n• Save memory: your note\n• Search memory: keyword\n• Create note: title\n• Create project: name\n• Search workspace: keyword\n• List workspace files\n• Open YouTube / Open Camera / Open Settings\nTip: Use the microphone and say a Work Mode or Normal Mode command to switch immediately."
             }
             normalizedCommand.startsWith("save memory:") || normalizedCommand.startsWith("remember this:") || normalizedCommand.startsWith("yaad rakho:") -> {
                 val note = text.substringAfter(':').trim()
