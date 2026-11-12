@@ -313,7 +313,7 @@ private fun HairaApp(
                                 }
                             }
                         },
-                        onOpenModel = { seriousMode = false; tab = "MODEL" },
+                        onOpenModel = { seriousMode = false; tab = "MODELS" },
                         onReturnNormal = { seriousMode = false },
                         onExecuteTask = executeLocalTask
                     )
