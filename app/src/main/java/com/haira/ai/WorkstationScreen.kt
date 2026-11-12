@@ -63,7 +63,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, modelStatus: Strin
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(section, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                    Text("HAIRA AI • LOCAL-FIRST WORKSTATION • v0.7.0", color = WorkMuted, fontSize = 8.sp)
+                    Text("HAIRA AI • LOCAL-FIRST WORKSTATION • v0.8.0", color = WorkMuted, fontSize = 8.sp)
                 }
                 Text(if (modelLoaded) "MODEL READY" else "MODEL NOT LOADED", color = if (modelLoaded) Color(0xFF8BE0B0) else WorkGold, fontSize = 8.sp)
             }
