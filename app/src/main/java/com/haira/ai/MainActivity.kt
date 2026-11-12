@@ -484,6 +484,7 @@ private fun HairaApp(
                                 } finally {
                                     modelBusy = false
                                 }
+                            }
                         },
                         {
                             runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(HairaIntelligenceCatalog.nanoLmGgufPage))) }
