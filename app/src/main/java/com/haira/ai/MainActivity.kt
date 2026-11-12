@@ -456,7 +456,7 @@ private fun HairaApp(
                         memories.removeAll { it.id == id }
                         memoryStore.saveMemories(memories.toList())
                     })
-                    "MODELS" -> ModelScreen(modelPath, modelLoaded, modelBusy, modelStatus, { modelPicker.launch(arrayOf("*/*")) })
+                    "MODELS" -> ModelScreen(modelPath, modelLoaded, modelBusy, modelStatus, { modelPicker.launch(arrayOf("*/*")) }, { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(HairaIntelligenceCatalog.gemmaOfficialModelPage))) } })
                     else -> SettingsScreen(messages.size, memories.size, autoSpeak, { enabled ->
                         autoSpeak = enabled
                         context.getSharedPreferences("haira_voice", Context.MODE_PRIVATE).edit().putBoolean("auto_speak", enabled).apply()
@@ -720,7 +720,7 @@ private fun MemoryScreen(messages: List<HairaMessage>, memories: List<HairaMemor
 }
 
 @Composable
-private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: String, onImport: () -> Unit) {
+private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: String, onImport: () -> Unit, onOpenGemma: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("LOCAL MODEL MANAGER", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
         Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
@@ -731,11 +731,19 @@ private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: St
                 Button(onClick = onImport, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "PLEASE WAIT…" else "IMPORT .LITERTLM MODEL") }
             }
         }
-        SettingRow("Runtime", "Google LiteRT-LM • CPU backend")
-        SettingRow("Model format", "Bundled Qwen3 .litertlm model")
-        SettingRow("Storage", "Qwen3 0.6B downloads over Wi-Fi on first launch and is stored in private app storage")
-        SettingRow("AI network", "Local inference is the default. External inference is optional; no provider is contacted until its access method is verified and enabled.")
-        SettingRow("Device limits", "Model files may be large. Speed and stability depend on model size, free RAM, heat and storage. Start with a small model.")
+        Surface(color = Panel, shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text("PRIMARY MODEL • GEMMA 3 1B INT4", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("Official LiteRT-LM model file: Gemma3-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm (~584 MB).", color = Color.White, fontSize = 9.sp, lineHeight = 14.sp)
+                Text("Open the official model page, sign in and accept the Gemma terms there, then download the .litertlm file and return here to import it. HAIRA does not collect or store your login or access token.", color = Muted, fontSize = 8.sp, lineHeight = 13.sp)
+                OutlinedButton(onClick = onOpenGemma, modifier = Modifier.fillMaxWidth()) { Text("OPEN OFFICIAL GEMMA MODEL PAGE", color = Cyan, fontSize = 9.sp) }
+            }
+        }
+        SettingRow("Runtime", "Google LiteRT-LM 0.18.1 • CPU backend")
+        SettingRow("Supported format", "Gemma 3 and Qwen3 .litertlm • one active model at a time")
+        SettingRow("Storage", "Imported models are stored in app-private storage. Keep the existing Qwen3 file as a backup until Gemma passes device testing.")
+        SettingRow("AI network", "Inference stays local. Model downloads require an internet connection; chat does not call a hosted AI provider.")
+        SettingRow("Device limits", "Gemma is about 584 MB. Allow enough free storage and RAM; speed, heat and stability on this phone still need real-device testing.")
         Text("LOCAL MODEL CANDIDATES", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
         HairaIntelligenceCatalog.localCandidates.forEach { candidate ->
             Surface(color = Panel, shape = RoundedCornerShape(11.dp), modifier = Modifier.fillMaxWidth()) {
@@ -757,7 +765,7 @@ private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: St
             SettingRow(provider.name + " • " + provider.access, provider.notes)
         }
         SettingRow("Verified no-key providers", HairaExternalProviderCatalog.noKeyVerifiedProviders.size.toString() + " currently verified")
-        Text("A model file is required for general local AI chat. Candidate models are not enabled until their format, runtime and checksum are verified.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+        Text("Importing a compatible .litertlm file activates it locally. Candidate models are not active until imported and loaded successfully.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
     }
 }
 
