@@ -30,6 +30,20 @@ data class HairaDownloadProgress(val downloaded: Long, val total: Long) {
 
 /** Curated catalog: each downloadable model must have a known HTTPS host and SHA-256. */
 object HairaModelCatalog {
+    // SHA-256 matches the 584,417,280-byte LiteRT-LM artifact documented by the model publisher.
+    // The mirror hosts the same bytes; Gemma terms still apply and are confirmed in the app before download.
+    val gemma3 = HairaModelSpec(
+        id = "gemma3-1b-int4-qat",
+        name = "Gemma 3 1B INT4 QAT",
+        description = "Primary local assistant model. 584 MB LiteRT-LM artifact.",
+        fileName = "Gemma3-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm",
+        downloadUrl = "https://huggingface.co/cuesetac/gemma-3-1b-it-litertlm/resolve/main/Gemma3-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm",
+        maxBytes = 700L * 1024L * 1024L,
+        sha256 = "1325ae366d31950f137c9c357b9fa89448b176d76998180c08ceaca78bba98be",
+        license = "Gemma Terms of Use",
+        sourceLabel = "Hugging Face mirror of LiteRT Community artifact"
+    )
+
     val starter = HairaModelSpec(
         id = "qwen3-0.6b-litertlm",
         name = "Qwen3 0.6B (LiteRT-LM)",
