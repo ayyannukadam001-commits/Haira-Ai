@@ -88,19 +88,6 @@ class MainActivity : ComponentActivity() {
                 handleCommand = ::handleCommand,
                 toolDescriptors = toolRegistry.tools,
                 executeLocalTask = toolRegistry::execute,
-                onOpenExternalPlugin = { id ->
-                    val url = when (id) {
-                        "gmail" -> "https://mail.google.com/"
-                        "drive" -> "https://drive.google.com/"
-                        else -> null
-                    }
-                    if (url == null) {
-                        "Unknown external integration."
-                    } else {
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                        "Opened the official website. Full account-data access is not connected."
-                    }
-                }
             )
         }
     }
@@ -266,11 +253,11 @@ private fun HairaApp(
             bottomBar = {
                 if (!seriousMode) {
                     NavigationBar(containerColor = Color(0xFF09121E), contentColor = Cyan) {
-                        listOf("HOME", "CHAT", "MEMORY", "MODEL", "GITHUB", "SETTINGS").forEach { item ->
+                        listOf("HOME", "CHAT", "WORKSPACE", "MODELS", "MEMORY", "SETTINGS").forEach { item ->
                             NavigationBarItem(
                                 selected = tab == item,
-                                onClick = { tab = item },
-                                icon = { Text(when (item) { "HOME" -> "⌂"; "CHAT" -> "◌"; "MEMORY" -> "▤"; "MODEL" -> "⬡"; "GITHUB" -> "⌘"; else -> "⚙" }, fontSize = 17.sp) },
+                                onClick = { if (item == "WORKSPACE") seriousMode = true else tab = item },
+                                icon = { Text(when (item) { "HOME" -> "⌂"; "CHAT" -> "◌"; "WORKSPACE" -> "▦"; "MODELS" -> "⬡"; "MEMORY" -> "▤"; else -> "⚙" }, fontSize = 17.sp) },
                                 label = { Text(item, fontSize = 8.sp, maxLines = 1) },
                                 colors = NavigationBarItemDefaults.colors(selectedIconColor = Cyan, selectedTextColor = Cyan, indicatorColor = Color(0xFF173044), unselectedIconColor = Muted, unselectedTextColor = Muted)
                             )
@@ -321,8 +308,7 @@ private fun HairaApp(
                         },
                         onOpenModel = { seriousMode = false; tab = "MODEL" },
                         onReturnNormal = { seriousMode = false },
-                        onExecuteTask = executeLocalTask,
-                        onOpenExternalPlugin = onOpenExternalPlugin
+                        onExecuteTask = executeLocalTask
                     )
                 } else when (tab) {
                     "HOME" -> HomeScreen(messages.size, memories.size, modelLoaded, modelStatus) { tab = "CHAT" }
@@ -347,8 +333,7 @@ private fun HairaApp(
                         memories.removeAll { it.id == id }
                         memoryStore.saveMemories(memories.toList())
                     })
-                    "MODEL" -> ModelScreen(modelPath, modelLoaded, modelBusy, modelStatus, { modelPicker.launch(arrayOf("*/*")) })
-                    "GITHUB" -> GitHubManagerScreen()
+                    "MODELS" -> ModelScreen(modelPath, modelLoaded, modelBusy, modelStatus, { modelPicker.launch(arrayOf("*/*")) })
                     else -> SettingsScreen(messages.size, memories.size, autoSpeak, { enabled ->
                         autoSpeak = enabled
                         context.getSharedPreferences("haira_voice", Context.MODE_PRIVATE).edit().putBoolean("auto_speak", enabled).apply()
@@ -439,7 +424,7 @@ private fun HairaHeader(modelLoaded: Boolean, onEnterSerious: () -> Unit) {
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(if (modelLoaded) "LOCAL AI READY" else "MODEL NOT LOADED", color = if (modelLoaded) Color(0xFF8BE0B0) else Gold, fontSize = 7.sp, fontWeight = FontWeight.Bold)
-            Text("BUILD 1.0.0", color = Muted, fontSize = 8.sp)
+            Text("BUILD 1.1.0", color = Muted, fontSize = 8.sp)
         }
         TextButton(onClick = onEnterSerious, contentPadding = PaddingValues(horizontal = 7.dp, vertical = 3.dp)) {
             Text("WORK MODE", color = Cyan, fontSize = 8.sp, fontWeight = FontWeight.Bold)
@@ -604,7 +589,23 @@ private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: St
         SettingRow("Storage", "Qwen3 0.6B is bundled in this APK and copied to private storage on first launch")
         SettingRow("AI network", "Inference runs locally. No AI API key or remote AI endpoint.")
         SettingRow("Device limits", "Model files may be large. Speed and stability depend on model size, free RAM, heat and storage. Start with a small model.")
-        Text("A model file is required for general AI chat. Without one, chat history, pinned memories, device TTS and listed Android shortcuts remain available.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+        Text("LOCAL MODEL CANDIDATES", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        HairaIntelligenceCatalog.localCandidates.forEach { candidate ->
+            Surface(color = Panel, shape = RoundedCornerShape(11.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(candidate.name, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text(candidate.provider + " • " + candidate.approximateSize + " • " + candidate.format, color = Cyan, fontSize = 8.sp)
+                    Text(candidate.status, color = Gold, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                    Text(candidate.limitation, color = Muted, fontSize = 8.sp, lineHeight = 12.sp)
+                }
+            }
+        }
+        Text("EXTERNAL MODEL ACCESS DISCOVERY", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Text("HAIRA will classify provider access only after checking official documentation and a documented safe availability endpoint. Unknown access is never reported as no-key.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+        HairaIntelligenceCatalog.externalAccessStates.forEach { state ->
+            SettingRow("Access classification", state)
+        }
+        Text("A model file is required for general local AI chat. Candidate models are not enabled until their format, runtime and checksum are verified.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
     }
 }
 
@@ -634,7 +635,7 @@ private fun SettingsScreen(messageCount: Int, memoryCount: Int, autoSpeak: Boole
                 OutlinedButton(onClick = onClearAll, modifier = Modifier.fillMaxWidth()) { Text("CLEAR ALL LOCAL MEMORY", color = Color(0xFFFF9B9B), fontSize = 8.sp) }
             }
         }
-        Text("HAIRA AI • PART 1 • BUILD 0.6.0", color = Muted, fontSize = 8.sp)
+        Text("HAIRA AI • HYBRID REDESIGN • BUILD 1.1.0", color = Muted, fontSize = 8.sp)
     }
 }
 
