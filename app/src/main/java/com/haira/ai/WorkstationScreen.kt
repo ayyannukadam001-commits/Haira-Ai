@@ -24,7 +24,7 @@ private val WorkMuted = Color(0xFF8CA4B8)
 private val WorkGold = Color(0xFFD7B56D)
 
 @Composable
-fun WorkstationScreen(context: Context, modelLoaded: Boolean, modelStatus: String, modelBusy: Boolean, downloadProgress: Float, onDownloadStarterModel: () -> Unit, onOpenModel: () -> Unit, onReturnNormal: () -> Unit) {
+fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: List<HairaToolDescriptor>, modelStatus: String, modelBusy: Boolean, downloadProgress: Float, onDownloadStarterModel: () -> Unit, onOpenModel: () -> Unit, onReturnNormal: () -> Unit) {
     val workspace = remember { File(context.filesDir, "haira_workspace").apply { mkdirs() } }
     var section by remember { mutableStateOf("OVERVIEW") }
     var files by remember { mutableStateOf(emptyList<File>()) }
@@ -50,7 +50,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, modelStatus: Strin
             Text("HAIRA", color = WorkCyan, fontSize = 21.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
             Text("SERIOUS MODE", color = WorkGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             HorizontalDivider(color = WorkCyan.copy(alpha = 0.25f))
-            listOf("OVERVIEW", "SELF SETUP", "FILES", "CODE", "RESEARCH", "TASK QUEUE", "STUDIOS").forEach { item ->
+            listOf("OVERVIEW", "SELF SETUP", "TOOLS", "FILES", "CODE", "RESEARCH", "TASK QUEUE", "STUDIOS").forEach { item ->
                 TextButton(onClick = { section = item }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(5.dp)) {
                     Text((if (section == item) "▸ " else "") + item, color = if (section == item) WorkCyan else WorkMuted, fontSize = 9.sp)
                 }
@@ -102,6 +102,19 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, modelStatus: Strin
                     Panel("MODEL STATUS", modelStatus) {
                         OutlinedButton(onClick = onOpenModel, enabled = !modelBusy) { Text("OPEN MODEL MANAGER", fontSize = 9.sp) }
                     }
+                }
+                "TOOLS" -> {
+                    Text("REGISTERED LOCAL TOOLS", color = WorkCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("These reviewed tool adapters are bundled with HAIRA and operate only on their declared local scope.", color = WorkMuted, fontSize = 9.sp)
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        items(toolDescriptors, key = { it.id }) { tool ->
+                            Panel(tool.name, tool.description) {
+                                Text("ID: ${tool.id}", color = WorkMuted, fontSize = 8.sp)
+                                Text("Try in chat: ${tool.exampleCommand}", color = WorkCyan, fontSize = 8.sp)
+                            }
+                        }
+                    }
+                    Panel("SECURITY BOUNDARY", "HAIRA does not download or execute arbitrary code as a tool. New tool adapters must be reviewed and integrated as app modules; model/data downloads use a separate checksum-verified path.")
                 }
                 "FILES" -> {
                     Row(verticalAlignment = Alignment.CenterVertically) {
