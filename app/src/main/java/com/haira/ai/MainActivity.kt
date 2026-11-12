@@ -251,11 +251,11 @@ private fun HairaApp(
             containerColor = Bg,
             bottomBar = {
                 NavigationBar(containerColor = Color(0xFF09121E), contentColor = Cyan) {
-                    listOf("HOME", "CHAT", "MEMORY", "SETTINGS").forEach { tab ->
+                    listOf("HOME", "CHAT", "MEMORY", "GITHUB", "SETTINGS").forEach { tab ->
                         NavigationBarItem(
                             selected = selectedTab == tab,
                             onClick = { selectedTab = tab },
-                            icon = { Text(when (tab) { "HOME" -> "⌂"; "CHAT" -> "◌"; "MEMORY" -> "▤"; else -> "⚙" }, fontSize = 20.sp) },
+                            icon = { Text(when (tab) { "HOME" -> "⌂"; "CHAT" -> "◌"; "MEMORY" -> "▤"; "GITHUB" -> "⌘"; else -> "⚙" }, fontSize = 20.sp) },
                             label = { Text(tab, fontSize = 9.sp, letterSpacing = 1.sp) },
                             colors = NavigationBarItemDefaults.colors(selectedIconColor = Cyan, selectedTextColor = Cyan, indicatorColor = Color(0xFF173044), unselectedIconColor = Muted, unselectedTextColor = Muted)
                         )
@@ -282,6 +282,7 @@ private fun HairaApp(
                         try { speechLauncher.launch(intent) } catch (_: Exception) { }
                     }, speak)
                     "MEMORY" -> MemoryScreen(messages, search, { search = it })
+                    "GITHUB" -> GitHubManagerScreen()
                     else -> SettingsScreen(
                         messageCount = messages.size,
                         config = gatewayConfig,
@@ -720,7 +721,7 @@ private fun SettingsScreen(
                 }
             }
         }
-        Text("HAIRA AI • ANDROID BUILD 0.6.0", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
+        Text("HAIRA AI • ANDROID BUILD 0.5.0", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
     }
 }
 
