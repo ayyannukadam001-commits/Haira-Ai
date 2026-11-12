@@ -3,10 +3,12 @@ package com.haira.ai
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
 import android.provider.CalendarContract
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import android.provider.Settings
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
@@ -14,198 +16,136 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.json.JSONArray
-import org.json.JSONObject
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-private data class ChatMessage(val text: String, val fromUser: Boolean, val time: Long = System.currentTimeMillis())
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val Bg = Color(0xFF050912)
 private val Panel = Color(0xFF0D1826)
-private val Panel2 = Color(0xFF122437)
 private val Cyan = Color(0xFF55E6F2)
 private val Muted = Color(0xFF8CA4B8)
 private val Gold = Color(0xFFD7B56D)
 
 class MainActivity : ComponentActivity() {
+    private lateinit var localModel: LiteRtLocalModelEngine
+    private lateinit var memoryStore: LocalMemoryStore
     private var tts: TextToSpeech? = null
     private var ttsReady = false
-    private lateinit var gatewayClient: GatewayAiClient
-    private lateinit var secureKeyStore: SecureKeyStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        gatewayClient = GatewayAiClient()
-        secureKeyStore = SecureKeyStore(this)
-        tts = TextToSpeech(this) { status ->
-            ttsReady = status == TextToSpeech.SUCCESS
+        localModel = LiteRtLocalModelEngine(cacheDir)
+        memoryStore = LocalMemoryStore(this)
+        getSharedPreferences("haira_gateway", MODE_PRIVATE).edit().clear().apply()
+        getSharedPreferences("haira_secure", MODE_PRIVATE).edit().clear().apply()
+        tts = TextToSpeech(this) { result ->
+            ttsReady = result == TextToSpeech.SUCCESS
             if (ttsReady) {
                 tts?.setSpeechRate(0.94f)
                 tts?.setPitch(1.02f)
-                val result = tts?.setLanguage(Locale("en", "IN"))
-                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    tts?.setLanguage(Locale.getDefault())
+                if (tts?.setLanguage(Locale.getDefault()) == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    tts?.setLanguage(Locale.US)
                 }
             }
         }
         setContent {
             HairaApp(
-                loadMessages = ::loadMessages,
-                saveMessages = ::saveMessages,
-                speak = ::speakReply,
-                clearMessages = ::clearMessages,
-                gatewayClient = gatewayClient,
-                loadGatewayConfig = ::loadGatewayConfig,
-                saveGatewayConfig = ::saveGatewayConfig,
-                loadAutoSpeak = ::loadAutoSpeak,
-                saveAutoSpeak = ::saveAutoSpeak,
+                context = this,
+                modelEngine = localModel,
+                memoryStore = memoryStore,
+                initialModelPath = getSharedPreferences("haira_model", MODE_PRIVATE).getString("path", null),
+                rememberModel = { path -> getSharedPreferences("haira_model", MODE_PRIVATE).edit().putString("path", path).apply() },
+                speak = { text -> if (ttsReady) tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "haira_reply") },
                 handleCommand = ::handleCommand
             )
         }
     }
 
-    private fun loadGatewayConfig(): GatewayConfig {
-        val prefs = getSharedPreferences("haira_gateway", MODE_PRIVATE)
-        return GatewayConfig(
-            provider = prefs.getString("provider", "FreeLLMAPI") ?: "FreeLLMAPI",
-            baseUrl = prefs.getString("base_url", "http://127.0.0.1:3001/v1") ?: "http://127.0.0.1:3001/v1",
-            model = prefs.getString("model", "auto") ?: "auto",
-            apiKey = secureKeyStore.readApiKey()
-        )
-    }
-
-    private fun saveGatewayConfig(config: GatewayConfig) {
-        getSharedPreferences("haira_gateway", MODE_PRIVATE).edit()
-            .putString("provider", config.provider)
-            .putString("base_url", config.baseUrl.trim().trimEnd('/'))
-            .putString("model", config.model.trim())
-            .apply()
-        secureKeyStore.saveApiKey(config.apiKey)
-    }
-
-    private fun loadAutoSpeak(): Boolean =
-        getSharedPreferences("haira_voice", MODE_PRIVATE).getBoolean("auto_speak", false)
-
-    private fun saveAutoSpeak(enabled: Boolean) {
-        getSharedPreferences("haira_voice", MODE_PRIVATE).edit().putBoolean("auto_speak", enabled).apply()
-    }
-
     private fun handleCommand(raw: String): String? {
         val command = raw.lowercase(Locale.ROOT).trim()
         return try {
-            when {
-                command == "open youtube" || command == "youtube kholo" || command == "youtube open karo" -> {
+            when (command) {
+                "open youtube", "youtube kholo", "youtube open karo" -> {
                     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")))
-                    "Opening YouTube."
+                    "YouTube open kar raha hoon."
                 }
-                command == "open settings" || command == "settings kholo" || command == "phone settings kholo" -> {
+                "open settings", "settings kholo", "phone settings kholo" -> {
                     startActivity(Intent(Settings.ACTION_SETTINGS))
-                    "Opening Android Settings."
+                    "Android Settings open kar raha hoon."
                 }
-                command == "open camera" || command == "camera kholo" || command == "camera open karo" -> {
+                "open camera", "camera kholo", "camera open karo" -> {
                     startActivity(Intent(MediaStore.ACTION_IMAGE_CAPTURE))
-                    "Opening the camera. The selected text model cannot understand images yet."
+                    "Camera app open kar raha hoon. Camera image understanding abhi available nahi hai."
                 }
-                command.startsWith("remind me to ") || command.startsWith("remind me ") || command.startsWith("mujhe yaad dilana ") -> {
-                    val title = raw.substringAfter("to ", raw.substringAfter("me ", raw)).trim().ifBlank { "HAIRA reminder" }
-                    val intent = Intent(Intent.ACTION_INSERT).setData(CalendarContract.Events.CONTENT_URI)
+                else -> if (command.startsWith("remind me to ") || command.startsWith("mujhe yaad dilana ")) {
+                    val title = raw.substringAfter("to ", raw.substringAfter("dilana ", raw)).trim().ifBlank { "HAIRA reminder" }
+                    startActivity(Intent(Intent.ACTION_INSERT).setData(CalendarContract.Events.CONTENT_URI)
                         .putExtra(CalendarContract.Events.TITLE, title)
-                        .putExtra(CalendarContract.Events.DESCRIPTION, "Created from HAIRA AI")
-                    startActivity(intent)
-                    "I opened your Calendar event form. Choose the date and time, then save it."
-                }
-                else -> null
+                        .putExtra(CalendarContract.Events.DESCRIPTION, "Created from HAIRA AI"))
+                    "Calendar reminder form open hua hai. Date aur time choose karke save karna."
+                } else null
             }
         } catch (_: Exception) {
-            "I couldn't open that action. Check that a compatible app is installed."
+            "Ye action open nahi ho paya. Compatible Android app check karo."
         }
-    }
-
-    private fun loadMessages(): List<ChatMessage> {
-        val raw = getSharedPreferences("haira_chat", MODE_PRIVATE).getString("messages", null) ?: return emptyList()
-        return try {
-            val array = JSONArray(raw)
-            (0 until array.length()).map { i ->
-                val item = array.getJSONObject(i)
-                ChatMessage(item.getString("text"), item.getBoolean("fromUser"), item.optLong("time"))
-            }
-        } catch (_: Exception) { emptyList() }
-    }
-
-    private fun saveMessages(messages: List<ChatMessage>) {
-        val array = JSONArray()
-        messages.takeLast(300).forEach {
-            array.put(JSONObject().put("text", it.text).put("fromUser", it.fromUser).put("time", it.time))
-        }
-        getSharedPreferences("haira_chat", MODE_PRIVATE).edit().putString("messages", array.toString()).apply()
-    }
-
-    private fun clearMessages() {
-        getSharedPreferences("haira_chat", MODE_PRIVATE).edit().remove("messages").apply()
-    }
-
-    private fun speakReply(text: String) {
-        if (ttsReady) tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "haira_reply")
     }
 
     override fun onDestroy() {
         tts?.stop()
         tts?.shutdown()
         tts = null
-        if (::gatewayClient.isInitialized) gatewayClient.close()
+        if (::localModel.isInitialized) localModel.close()
         super.onDestroy()
     }
 }
 
 @Composable
 private fun HairaApp(
-    loadMessages: () -> List<ChatMessage>,
-    saveMessages: (List<ChatMessage>) -> Unit,
+    context: Context,
+    modelEngine: LiteRtLocalModelEngine,
+    memoryStore: LocalMemoryStore,
+    initialModelPath: String?,
+    rememberModel: (String) -> Unit,
     speak: (String) -> Unit,
-    clearMessages: () -> Unit,
-    gatewayClient: GatewayAiClient,
-    loadGatewayConfig: () -> GatewayConfig,
-    saveGatewayConfig: (GatewayConfig) -> Unit,
-    loadAutoSpeak: () -> Boolean,
-    saveAutoSpeak: (Boolean) -> Unit,
     handleCommand: (String) -> String?
 ) {
-    var messages by remember { mutableStateOf(loadMessages()) }
-    var selectedTab by remember { mutableStateOf("HOME") }
+    val messages = remember { mutableStateListOf<HairaMessage>().apply { addAll(memoryStore.loadMessages()) } }
+    val memories = remember { mutableStateListOf<HairaMemory>().apply { addAll(memoryStore.loadMemories()) } }
+    var tab by remember { mutableStateOf("HOME") }
     var draft by remember { mutableStateOf("") }
     var search by remember { mutableStateOf("") }
-    var gatewayConfig by remember { mutableStateOf(loadGatewayConfig()) }
-    var gatewayStatus by remember { mutableStateOf("Not tested yet") }
-    var gatewayBusy by remember { mutableStateOf(false) }
-    var autoSpeak by remember { mutableStateOf(loadAutoSpeak()) }
+    var memoryDraft by remember { mutableStateOf("") }
+    var autoSpeak by remember { mutableStateOf(context.getSharedPreferences("haira_voice", Context.MODE_PRIVATE).getBoolean("auto_speak", false)) }
+    var modelPath by remember { mutableStateOf(initialModelPath.orEmpty()) }
+    var modelLoaded by remember { mutableStateOf(false) }
+    var modelBusy by remember { mutableStateOf(false) }
+    var modelStatus by remember { mutableStateOf(if (initialModelPath.isNullOrBlank()) "No local model imported yet." else "Checking saved model…") }
     var busy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -214,35 +154,77 @@ private fun HairaApp(
         }
     }
 
+    val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null && !modelBusy) scope.launch {
+            modelBusy = true
+            modelStatus = "Copying model into private app storage…"
+            try {
+                val file = copyModelIntoPrivateStorage(context, uri)
+                modelStatus = "Loading model on CPU. First load may take several seconds…"
+                withContext(Dispatchers.IO) { modelEngine.load(file) }
+                modelPath = file.absolutePath
+                rememberModel(file.absolutePath)
+                modelLoaded = true
+                modelStatus = "Local model ready: " + file.name
+            } catch (error: Throwable) {
+                modelLoaded = false
+                modelStatus = "Model load failed: " + (error.message ?: "Unknown runtime error")
+            } finally {
+                modelBusy = false
+            }
+        }
+    }
+
+    LaunchedEffect(initialModelPath) {
+        val saved = initialModelPath?.let { File(it) }
+        if (saved != null && saved.isFile && saved.length() > 0L) {
+            modelBusy = true
+            modelStatus = "Loading saved model on CPU…"
+            try {
+                withContext(Dispatchers.IO) { modelEngine.load(saved) }
+                modelLoaded = true
+                modelPath = saved.absolutePath
+                modelStatus = "Local model ready: " + saved.name
+            } catch (error: Throwable) {
+                modelStatus = "Saved model load failed: " + (error.message ?: "Unknown error")
+            } finally {
+                modelBusy = false
+            }
+        }
+    }
+
+    fun addMessage(text: String, fromUser: Boolean) {
+        messages.add(HairaMessage(System.currentTimeMillis(), text, fromUser))
+        while (messages.size > 500) messages.removeAt(0)
+        memoryStore.saveMessages(messages.toList())
+    }
+
     fun sendMessage() {
         val text = draft.trim()
-        if (text.isEmpty() || gatewayBusy || busy) return
-        messages = (messages + ChatMessage(text, true)).takeLast(300)
-        saveMessages(messages)
+        if (text.isEmpty() || busy) return
         draft = ""
-
-        val commandReply = handleCommand(text)
-        if (commandReply != null) {
-            messages = (messages + ChatMessage(commandReply, false)).takeLast(300)
-            saveMessages(messages)
-            if (autoSpeak) speak(commandReply)
+        addMessage(text, true)
+        val localCommand = handleCommand(text)
+        if (localCommand != null) {
+            addMessage(localCommand, false)
+            if (autoSpeak) speak(localCommand)
             return
         }
-        messages = (messages + ChatMessage("", false)).takeLast(300)
-        busy = true
-        val history = messages.dropLast(1).takeLast(24).map {
-            (if (it.fromUser) "user" else "assistant") to it.text
+        if (!modelLoaded) {
+            val reply = "Mera local AI model abhi load nahi hai. MODEL tab kholo aur compatible .litertlm file import karo. Chat history, memory vault, device TTS aur supported phone shortcuts local kaam karte hain; general AI chat ke liye model zaroori hai."
+            addMessage(reply, false)
+            if (autoSpeak) speak(reply)
+            return
         }
-        gatewayClient.send(gatewayConfig, history) { result ->
+        busy = true
+        addMessage("Thinking on this device…", false)
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { modelEngine.generate(text) } }
             busy = false
-            val reply = result.getOrElse { error -> "AI connection error: ${error.message ?: "Unknown error"}" }
-            gatewayStatus = if (result.isSuccess) "Gateway reachable • live chat response received" else "Chat request failed: ${result.exceptionOrNull()?.message ?: "Unknown error"}"
-            if (result.isSuccess && autoSpeak) speak(reply)
-            val last = messages.lastOrNull()
-            if (last != null && !last.fromUser) {
-                messages = messages.dropLast(1) + last.copy(text = reply)
-                saveMessages(messages)
-            }
+            if (messages.isNotEmpty() && !messages.last().fromUser && messages.last().text == "Thinking on this device…") messages.removeAt(messages.lastIndex)
+            val answer = result.getOrElse { "Local inference failed: " + (it.message ?: "Unknown error") + ". Check model compatibility and free memory." }
+            addMessage(answer, false)
+            if (autoSpeak) speak(answer)
         }
     }
 
@@ -251,12 +233,12 @@ private fun HairaApp(
             containerColor = Bg,
             bottomBar = {
                 NavigationBar(containerColor = Color(0xFF09121E), contentColor = Cyan) {
-                    listOf("HOME", "CHAT", "MEMORY", "GITHUB", "SETTINGS").forEach { tab ->
+                    listOf("HOME", "CHAT", "MEMORY", "MODEL", "GITHUB", "SETTINGS").forEach { item ->
                         NavigationBarItem(
-                            selected = selectedTab == tab,
-                            onClick = { selectedTab = tab },
-                            icon = { Text(when (tab) { "HOME" -> "⌂"; "CHAT" -> "◌"; "MEMORY" -> "▤"; "GITHUB" -> "⌘"; else -> "⚙" }, fontSize = 20.sp) },
-                            label = { Text(tab, fontSize = 9.sp, letterSpacing = 1.sp) },
+                            selected = tab == item,
+                            onClick = { tab = item },
+                            icon = { Text(when (item) { "HOME" -> "⌂"; "CHAT" -> "◌"; "MEMORY" -> "▤"; "MODEL" -> "⬡"; "GITHUB" -> "⌘"; else -> "⚙" }, fontSize = 17.sp) },
+                            label = { Text(item, fontSize = 8.sp, maxLines = 1) },
                             colors = NavigationBarItemDefaults.colors(selectedIconColor = Cyan, selectedTextColor = Cyan, indicatorColor = Color(0xFF173044), unselectedIconColor = Muted, unselectedTextColor = Muted)
                         )
                     }
@@ -266,11 +248,11 @@ private fun HairaApp(
             Column(
                 Modifier.fillMaxSize().padding(padding)
                     .background(Brush.verticalGradient(listOf(Color(0xFF0C1D2B), Bg, Color(0xFF070B13))))
-                    .padding(horizontal = 18.dp)
+                    .padding(horizontal = 15.dp)
             ) {
-                Header()
-                when (selectedTab) {
-                    "HOME" -> HomeScreen(messages.size, gatewayStatus, onChat = { selectedTab = "CHAT" })
+                HairaHeader(modelLoaded)
+                when (tab) {
+                    "HOME" -> HomeScreen(messages.size, memories.size, modelLoaded, modelStatus) { tab = "CHAT" }
                     "CHAT" -> ChatScreen(messages, draft, { draft = it }, { sendMessage() }, {
                         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -280,285 +262,172 @@ private fun HairaApp(
                             putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to HAIRA")
                         }
                         try { speechLauncher.launch(intent) } catch (_: Exception) { }
-                    }, speak)
-                    "MEMORY" -> MemoryScreen(messages, search, { search = it })
+                    }, speak, busy)
+                    "MEMORY" -> MemoryScreen(messages, memories, search, { search = it }, memoryDraft, { memoryDraft = it }, {
+                        val note = memoryDraft.trim()
+                        if (note.isNotEmpty()) {
+                            memories.add(HairaMemory(System.currentTimeMillis(), note))
+                            memoryStore.saveMemories(memories.toList())
+                            memoryDraft = ""
+                        }
+                    }, { id ->
+                        memories.removeAll { it.id == id }
+                        memoryStore.saveMemories(memories.toList())
+                    })
+                    "MODEL" -> ModelScreen(modelPath, modelLoaded, modelBusy, modelStatus, { modelPicker.launch(arrayOf("*/*")) })
                     "GITHUB" -> GitHubManagerScreen()
-                    else -> SettingsScreen(
-                        messageCount = messages.size,
-                        config = gatewayConfig,
-                        status = gatewayStatus,
-                        testing = gatewayBusy,
-                        autoSpeak = autoSpeak,
-                        onAutoSpeakChange = { enabled -> autoSpeak = enabled; saveAutoSpeak(enabled) },
-                        onConfigChange = { gatewayConfig = it },
-                        onSave = {
-                            saveGatewayConfig(gatewayConfig)
-                            gatewayStatus = "Settings saved. Test the connection."
-                        },
-                        onTest = {
-                            if (!gatewayBusy) {
-                                saveGatewayConfig(gatewayConfig)
-                                gatewayBusy = true
-                                gatewayStatus = "Checking gateway..."
-                                gatewayClient.testConnection(gatewayConfig) { result ->
-                                    gatewayBusy = false
-                                    gatewayStatus = result.fold(
-                                        { models -> if (models.isEmpty()) "Gateway reachable, but no models were listed" else "Gateway reachable • ${models.size} models found: ${models.take(4).joinToString()} (send a chat to verify inference)" },
-                                        { error -> "Connection failed: ${error.message ?: "Unknown error"}" }
-                                    )
-                                }
-                            }
-                        },
-                        onClear = { messages = emptyList(); clearMessages() }
-                    )
+                    else -> SettingsScreen(messages.size, memories.size, autoSpeak, { enabled ->
+                        autoSpeak = enabled
+                        context.getSharedPreferences("haira_voice", Context.MODE_PRIVATE).edit().putBoolean("auto_speak", enabled).apply()
+                    }, {
+                        messages.clear()
+                        memoryStore.clearMessages()
+                    }, {
+                        messages.clear()
+                        memories.clear()
+                        memoryStore.clearAllLocalMemory()
+                    })
                 }
             }
         }
     }
 }
 
+private suspend fun copyModelIntoPrivateStorage(context: Context, uri: Uri): File = withContext(Dispatchers.IO) {
+    val name = queryDisplayName(context, uri)
+    require(name.endsWith(".litertlm", ignoreCase = true)) { "Choose a compatible .litertlm model file." }
+    val folder = File(context.filesDir, "models").apply { mkdirs() }
+    val temp = File(folder, "haira-model.importing")
+    val target = File(folder, "haira-local-model.litertlm")
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        temp.outputStream().buffered().use { output -> input.copyTo(output, 1024 * 1024) }
+    } ?: error("Android could not open the selected model.")
+    require(temp.length() > 0L) { "The selected model file is empty." }
+    if (target.exists()) target.delete()
+    check(temp.renameTo(target)) { "Could not finalize the model import." }
+    target
+}
+
+private fun queryDisplayName(context: Context, uri: Uri): String {
+    var name = "model.litertlm"
+    val cursor: Cursor? = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+    cursor?.use {
+        if (it.moveToFirst()) {
+            val index = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (index >= 0) name = it.getString(index) ?: name
+        }
+    }
+    return name
+}
+
 @Composable
-private fun Header() {
-    Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun HairaHeader(modelLoaded: Boolean) {
+    Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Surface(color = Color(0xFF092438), shape = RoundedCornerShape(12.dp), modifier = Modifier.size(40.dp)) {
+            Box(contentAlignment = Alignment.Center) { Text("H", color = Cyan, fontSize = 24.sp, fontWeight = FontWeight.Black) }
+        }
+        Spacer(Modifier.width(9.dp))
         Column(Modifier.weight(1f)) {
-            Text("HAIRA", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
-            Text("PERSONAL INTELLIGENCE SYSTEM", color = Cyan, fontSize = 9.sp, letterSpacing = 2.sp)
+            Text("HAIRA AI", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            Text("LOCAL PERSONAL INTELLIGENCE", color = Cyan, fontSize = 7.sp, letterSpacing = 1.sp)
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text("GATEWAY AI", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-            Text("BUILD 0.5.0", color = Muted, fontSize = 9.sp)
+            Text(if (modelLoaded) "LOCAL AI READY" else "MODEL NOT LOADED", color = if (modelLoaded) Color(0xFF8BE0B0) else Gold, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+            Text("BUILD 0.6.0", color = Muted, fontSize = 8.sp)
         }
     }
 }
 
 @Composable
-private fun HomeScreen(messageCount: Int, gatewayStatus: String, onChat: () -> Unit) {
-    val connected = gatewayStatus.startsWith("Gateway reachable")
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
+private fun HomeScreen(messageCount: Int, memoryCount: Int, modelLoaded: Boolean, modelStatus: String, onChat: () -> Unit) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 15.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Good to see you, Sir ji.", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Your personal command space.", color = Muted, fontSize = 12.sp)
-                }
-                Surface(color = if (connected) Color(0xFF17372F) else Color(0xFF382B1A), shape = RoundedCornerShape(20.dp)) {
-                    Text(if (connected) "● GATEWAY ONLINE" else "● SETUP NEEDED", color = if (connected) Color(0xFF8BE0B0) else Color(0xFFFFC477), fontSize = 9.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
-                }
-            }
+            Text("Good to see you, Sir ji.", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text("Your private, on-device command space.", color = Muted, fontSize = 10.sp)
         }
-        item { HoloCore() }
+        item { HoloCore(modelLoaded) }
         item {
-            Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
+            Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("REMOTE AI CORE", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                        Text("LOCAL AI CORE", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                         Spacer(Modifier.weight(1f))
-                        Text(if (connected) "ONLINE" else "NOT CONNECTED", color = if (connected) Color(0xFF8BE0B0) else Color(0xFFFFC477), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(if (modelLoaded) "READY" else "SETUP REQUIRED", color = if (modelLoaded) Color(0xFF8BE0B0) else Gold, fontSize = 8.sp)
                     }
-                    Spacer(Modifier.height(8.dp))
-                    Text(gatewayStatus, color = Color(0xFFC0CFDA), fontSize = 12.sp, lineHeight = 18.sp)
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedButton(onClick = onChat, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                        Text("OPEN HAIRA CHAT  →", color = Cyan, letterSpacing = 1.sp)
-                    }
+                    Text(modelStatus, color = Color(0xFFC0CFDA), fontSize = 10.sp, lineHeight = 15.sp)
+                    OutlinedButton(onClick = onChat, modifier = Modifier.fillMaxWidth()) { Text("OPEN HAIRA CHAT  →", color = Cyan) }
                 }
             }
         }
         item {
-            Text("SYSTEM OVERVIEW", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatusCard("CHAT MEMORY", messageCount.toString(), "messages saved", Modifier.weight(1f))
-                StatusCard("VOICE OUTPUT", "READY", "device TTS", Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatusCard("VOICE INPUT", "BASIC", "Android recognizer", Modifier.weight(1f))
-                StatusCard("AI ROUTING", if (connected) "READY" else "SETUP", "gateway connection", Modifier.weight(1f))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusCard("CHAT HISTORY", messageCount.toString(), "saved locally", Modifier.weight(1f))
+                StatusCard("PINNED MEMORY", memoryCount.toString(), "saved notes", Modifier.weight(1f))
             }
         }
         item {
-            Text("QUICK ACCESS", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-            Surface(color = Panel2, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().clickable { onChat() }) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("◉", color = Cyan, fontSize = 22.sp)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Start a conversation", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Text("Remote AI chat and Android speech input", color = Muted, fontSize = 11.sp)
-                    }
-                    Text("›", color = Cyan, fontSize = 26.sp)
-                }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusCard("VOICE OUTPUT", "DEVICE TTS", "phone voice engine", Modifier.weight(1f))
+                StatusCard("AI CONNECTION", "OFFLINE", "no cloud AI API", Modifier.weight(1f))
             }
         }
+        item { SettingRow("On-device inference", "LiteRT-LM runtime • CPU backend • model imported separately") }
+        item { SettingRow("Privacy", "Chat history and pinned memories stay in app-private storage") }
+        item { SettingRow("Voice input", "Android speech recognizer • offline availability depends on installed speech service") }
     }
 }
 
 @Composable
-private fun HoloCore() {
-    val motion = androidx.compose.animation.core.rememberInfiniteTransition(label = "haira_hologram")
-    val pulse by motion.animateFloat(0.94f, 1.06f, animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-        androidx.compose.animation.core.tween(1900, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-    ), label = "pulse")
-    val floatY by motion.animateFloat(-5f, 5f, animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-        androidx.compose.animation.core.tween(3200, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-    ), label = "float")
-    val orbit by motion.animateFloat(0f, 360f, animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-        androidx.compose.animation.core.tween(18000, easing = androidx.compose.animation.core.LinearEasing)
-    ), label = "orbit")
-    val blink by motion.animateFloat(0f, 1f, animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-        androidx.compose.animation.core.keyframes {
-            durationMillis = 4200
-            0f at 0
-            0f at 1900
-            1f at 1960
-            0f at 2030
-            0f at 4200
+private fun HoloCore(active: Boolean) {
+    val motion = androidx.compose.animation.core.rememberInfiniteTransition(label = "haira_core")
+    val glow by motion.animateFloat(0.8f, 1f, animationSpec = androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1800), repeatMode = androidx.compose.animation.core.RepeatMode.Reverse), label = "glow")
+    Box(Modifier.fillMaxWidth().height(175.dp).clip(RoundedCornerShape(22.dp)).background(Brush.radialGradient(listOf(Color(0xFF17445A), Color(0xFF0B1B2A), Color(0xFF07111D), Color.Transparent))), contentAlignment = Alignment.Center) {
+        Surface(color = Color(0xFF0B2434), shape = CircleShape, border = androidx.compose.foundation.BorderStroke(1.dp, Cyan.copy(alpha = 0.6f * glow)), modifier = Modifier.size(120.dp)) {
+            Box(contentAlignment = Alignment.Center) { Text("H", color = Cyan.copy(alpha = if (active) 1f else 0.65f), fontSize = 66.sp, fontWeight = FontWeight.Light) }
         }
-    ), label = "blink")
-    Box(
-        Modifier.fillMaxWidth().height(310.dp)
-            .background(Brush.radialGradient(listOf(Color(0xFF17445A), Color(0xFF0B1B2A), Color(0xFF07111D), Color.Transparent)), RoundedCornerShape(24.dp)),
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val cx = size.width / 2f
-            val cy = size.height * 0.47f
-            val dp = density
-            val ring = size.minDimension * 0.39f
-            val stroke = androidx.compose.ui.graphics.drawscope.Stroke(1.1.dp.toPx())
-            drawCircle(Cyan.copy(alpha = 0.045f * pulse), ring * 1.18f, Offset(cx, cy))
-            drawCircle(Cyan.copy(alpha = 0.22f), ring, Offset(cx, cy), style = stroke)
-            drawCircle(Gold.copy(alpha = 0.30f), ring * 0.91f, Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(0.8.dp.toPx()))
-            drawArc(Cyan.copy(alpha = 0.9f), orbit, 76f, false, Offset(cx-ring, cy-ring), androidx.compose.ui.geometry.Size(ring*2, ring*2), style = androidx.compose.ui.graphics.drawscope.Stroke(2.2.dp.toPx()))
-            drawArc(Gold.copy(alpha = 0.72f), 190f-orbit*0.45f, 48f, false, Offset(cx-ring*0.91f, cy-ring*0.91f), androidx.compose.ui.geometry.Size(ring*1.82f, ring*1.82f), style = androidx.compose.ui.graphics.drawscope.Stroke(1.4.dp.toPx()))
-            for (i in 0..12) {
-                val angle = Math.toRadians((i * 27.7 + orbit * 0.12).toDouble())
-                val inner = ring * 1.02f
-                val outer = ring * if (i % 3 == 0) 1.12f else 1.07f
-                val x1 = cx + kotlin.math.cos(angle).toFloat() * inner
-                val y1 = cy + kotlin.math.sin(angle).toFloat() * inner
-                val x2 = cx + kotlin.math.cos(angle).toFloat() * outer
-                val y2 = cy + kotlin.math.sin(angle).toFloat() * outer
-                drawLine(if (i % 3 == 0) Gold.copy(alpha = 0.75f) else Cyan.copy(alpha = 0.48f), Offset(x1,y1), Offset(x2,y2), 1.2.dp.toPx())
-            }
-            val top = cy - 79.dp.toPx() + floatY.dp.toPx()
-            val faceW = 43.dp.toPx()
-            val faceH = 91.dp.toPx()
-            val face = Path().apply {
-                moveTo(cx, top)
-                cubicTo(cx-faceW*0.82f, top-2.dp.toPx(), cx-faceW, top+27.dp.toPx(), cx-faceW*0.84f, top+55.dp.toPx())
-                cubicTo(cx-faceW*0.70f, top+80.dp.toPx(), cx-faceW*0.35f, top+faceH, cx, top+faceH+2.dp.toPx())
-                cubicTo(cx+faceW*0.38f, top+faceH, cx+faceW*0.73f, top+79.dp.toPx(), cx+faceW*0.86f, top+53.dp.toPx())
-                cubicTo(cx+faceW, top+25.dp.toPx(), cx+faceW*0.78f, top-2.dp.toPx(), cx, top)
-                close()
-            }
-            val hair = Path().apply {
-                moveTo(cx-faceW*0.98f, top+54.dp.toPx())
-                cubicTo(cx-faceW*1.12f, top+8.dp.toPx(), cx-faceW*0.52f, top-24.dp.toPx(), cx+4.dp.toPx(), top-21.dp.toPx())
-                cubicTo(cx+faceW*0.95f, top-18.dp.toPx(), cx+faceW*1.12f, top+15.dp.toPx(), cx+faceW*0.91f, top+55.dp.toPx())
-                cubicTo(cx+faceW*0.68f, top+28.dp.toPx(), cx+faceW*0.53f, top+12.dp.toPx(), cx+8.dp.toPx(), top+23.dp.toPx())
-                cubicTo(cx-8.dp.toPx(), top+8.dp.toPx(), cx-22.dp.toPx(), top+21.dp.toPx(), cx-faceW*0.98f, top+54.dp.toPx())
-                close()
-            }
-            drawPath(hair, Brush.linearGradient(listOf(Color(0xFF62E9F5).copy(alpha=0.55f), Color(0xFF153D59).copy(alpha=0.9f), Color(0xFF0A2236))), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
-            drawPath(face, Brush.verticalGradient(listOf(Color(0xFF9DF5FF).copy(alpha=0.30f), Color(0xFF2E7891).copy(alpha=0.17f), Color(0xFF0D2B42).copy(alpha=0.25f)), top, top+faceH), style = androidx.compose.ui.graphics.drawscope.Stroke(1.8.dp.toPx()))
-            // Face contour, fringe and neck details create a more expressive digital-human silhouette.
-            drawPath(Path().apply {
-                moveTo(cx-34.dp.toPx(), top+18.dp.toPx())
-                cubicTo(cx-21.dp.toPx(), top-5.dp.toPx(), cx-7.dp.toPx(), top+3.dp.toPx(), cx+2.dp.toPx(), top+17.dp.toPx())
-                cubicTo(cx+13.dp.toPx(), top-2.dp.toPx(), cx+27.dp.toPx(), top+5.dp.toPx(), cx+37.dp.toPx(), top+25.dp.toPx())
-            }, Cyan.copy(alpha=0.72f), style = androidx.compose.ui.graphics.drawscope.Stroke(1.3.dp.toPx()))
-            drawLine(Cyan.copy(alpha=0.45f), Offset(cx-37.dp.toPx(),top+47.dp.toPx()), Offset(cx-31.dp.toPx(),top+69.dp.toPx()), 1.dp.toPx())
-            drawLine(Cyan.copy(alpha=0.45f), Offset(cx+37.dp.toPx(),top+47.dp.toPx()), Offset(cx+31.dp.toPx(),top+69.dp.toPx()), 1.dp.toPx())
-            val eyeY = top + 48.dp.toPx()
-            val eyeAlpha = if (blink > 0.5f) 0.18f else 0.95f
-            drawLine(Cyan.copy(alpha=eyeAlpha), Offset(cx-25.dp.toPx(),eyeY), Offset(cx-10.dp.toPx(),eyeY), 2.dp.toPx())
-            drawLine(Cyan.copy(alpha=eyeAlpha), Offset(cx+10.dp.toPx(),eyeY), Offset(cx+25.dp.toPx(),eyeY), 2.dp.toPx())
-            drawLine(Color(0xFFB9F8FF).copy(alpha=0.55f), Offset(cx,top+51.dp.toPx()), Offset(cx-2.dp.toPx(),top+67.dp.toPx()), 1.dp.toPx())
-            drawLine(Gold.copy(alpha=0.78f), Offset(cx-7.dp.toPx(),top+77.dp.toPx()), Offset(cx+7.dp.toPx(),top+77.dp.toPx()), 1.2.dp.toPx())
-            drawLine(Cyan.copy(alpha=0.75f), Offset(cx-12.dp.toPx(),top+faceH-1.dp.toPx()), Offset(cx-12.dp.toPx(),top+faceH+27.dp.toPx()), 2.dp.toPx())
-            drawLine(Cyan.copy(alpha=0.75f), Offset(cx+12.dp.toPx(),top+faceH-1.dp.toPx()), Offset(cx+12.dp.toPx(),top+faceH+27.dp.toPx()), 2.dp.toPx())
-            val shoulders = Path().apply {
-                moveTo(cx-12.dp.toPx(), top+faceH+23.dp.toPx())
-                cubicTo(cx-35.dp.toPx(), top+faceH+25.dp.toPx(), cx-64.dp.toPx(), top+faceH+37.dp.toPx(), cx-78.dp.toPx(), top+faceH+76.dp.toPx())
-                cubicTo(cx-42.dp.toPx(), top+faceH+96.dp.toPx(), cx+42.dp.toPx(), top+faceH+96.dp.toPx(), cx+78.dp.toPx(), top+faceH+76.dp.toPx())
-                cubicTo(cx+64.dp.toPx(), top+faceH+37.dp.toPx(), cx+35.dp.toPx(), top+faceH+25.dp.toPx(), cx+12.dp.toPx(), top+faceH+23.dp.toPx())
-                close()
-            }
-            drawPath(shoulders, Brush.verticalGradient(listOf(Color(0xFF65EAF5).copy(alpha=0.28f), Color(0xFF12374E).copy(alpha=0.18f))), style = androidx.compose.ui.graphics.drawscope.Stroke(1.8.dp.toPx()))
-            drawLine(Gold.copy(alpha=0.6f), Offset(cx-28.dp.toPx(),top+faceH+54.dp.toPx()), Offset(cx+28.dp.toPx(),top+faceH+54.dp.toPx()), 1.dp.toPx())
-            for (i in 0..6) {
-                val y = cy - 112.dp.toPx() + i * 35.dp.toPx()
-                drawLine(Cyan.copy(alpha=0.045f), Offset(cx-112.dp.toPx(),y), Offset(cx+112.dp.toPx(),y), 0.7.dp.toPx())
-            }
-            drawCircle(Gold.copy(alpha=0.9f), 2.4.dp.toPx(), Offset(cx+ring*1.02f,cy-ring*0.48f))
-            drawCircle(Cyan.copy(alpha=0.9f), 2.dp.toPx(), Offset(cx-ring*1.04f,cy+ring*0.38f))
-            drawCircle(Color.White.copy(alpha=0.5f), 1.5.dp.toPx(), Offset(cx+ring*0.56f,cy+ring*0.82f))
+        Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("HAIRA CORE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+            Text(if (active) "ON-DEVICE INFERENCE READY" else "LOCAL MODEL AWAITS IMPORT", color = Cyan, fontSize = 7.sp)
         }
-        Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 13.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("HAIRA", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 5.sp)
-            Text("HOLOGRAPHIC DIGITAL PRESENCE", color = Cyan, fontSize = 8.sp, letterSpacing = 1.8.sp)
-            Text("AWARE • RESPONSIVE • ONLINE-READY", color = Muted, fontSize = 7.sp, letterSpacing = 1.sp)
-        }
-        Text("✦", color = Gold, fontSize = 18.sp, modifier = Modifier.align(Alignment.TopEnd).padding(top=28.dp,end=36.dp))
-        Text("⌁", color = Cyan, fontSize = 20.sp, modifier = Modifier.align(Alignment.CenterStart).padding(start=22.dp,top=12.dp))
     }
 }
 
 @Composable
 private fun StatusCard(title: String, value: String, detail: String, modifier: Modifier = Modifier) {
-    Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = modifier) {
-        Column(Modifier.padding(13.dp)) {
-            Text(title, color = Muted, fontSize = 8.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(7.dp))
-            Text(value, color = if (value == "PENDING") Color(0xFFFFC477) else Cyan, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text(detail, color = Muted, fontSize = 9.sp)
+    Surface(color = Panel, shape = RoundedCornerShape(12.dp), modifier = modifier) {
+        Column(Modifier.padding(10.dp)) {
+            Text(title, color = Muted, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(5.dp))
+            Text(value, color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(detail, color = Muted, fontSize = 8.sp)
         }
     }
 }
 
 @Composable
-private fun ChatScreen(
-    messages: List<ChatMessage>,
-    draft: String,
-    onDraft: (String) -> Unit,
-    onSend: () -> Unit,
-    onMic: () -> Unit,
-    speak: (String) -> Unit
-) {
+private fun ChatScreen(messages: List<HairaMessage>, draft: String, onDraft: (String) -> Unit, onSend: () -> Unit, onMic: () -> Unit, speak: (String) -> Unit, busy: Boolean) {
     Column(Modifier.fillMaxSize()) {
-        Text("CONVERSATION", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-        Text("Saved locally on this device", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(bottom = 8.dp))
+        Text("CONVERSATION", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+        Text("Messages are stored locally on this device.", color = Muted, fontSize = 9.sp, modifier = Modifier.padding(bottom = 6.dp))
         if (messages.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("◉", color = Cyan, fontSize = 42.sp)
-                    Text("Hello, Sir ji", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Start a new conversation.", color = Muted, fontSize = 12.sp)
-                    Text("AI model is not connected in this build.", color = Color(0xFFFFC477), fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+                    Text("◉", color = Cyan, fontSize = 40.sp)
+                    Text("Hello, Sir ji", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Import a local model to enable AI chat.", color = Muted, fontSize = 10.sp)
                 }
             }
         } else {
-            LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(messages) { message ->
+            LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                items(messages, key = { it.id }) { message ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (message.fromUser) Arrangement.End else Arrangement.Start) {
-                        Surface(
-                            color = if (message.fromUser) Color(0xFF17465A) else Panel,
-                            shape = RoundedCornerShape(17.dp),
-                            modifier = Modifier.widthIn(max = 310.dp)
-                        ) {
-                            Column(Modifier.padding(horizontal = 14.dp, vertical = 11.dp)) {
-                                Text(if (message.fromUser) "SIR JI" else "HAIRA", color = if (message.fromUser) Color(0xFFB7E9F2) else Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                                Spacer(Modifier.height(5.dp))
-                                Text(message.text, color = Color.White, fontSize = 13.sp, lineHeight = 19.sp)
-                                if (!message.fromUser) TextButton(onClick = { speak(message.text) }, contentPadding = PaddingValues(0.dp)) {
-                                    Text("▶  PLAY VOICE", color = Cyan, fontSize = 9.sp)
+                        Surface(color = if (message.fromUser) Color(0xFF17465A) else Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.widthIn(max = 310.dp)) {
+                            Column(Modifier.padding(horizontal = 11.dp, vertical = 8.dp)) {
+                                Text(if (message.fromUser) "YOU" else "HAIRA", color = if (message.fromUser) Color(0xFFB7E9F2) else Cyan, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.height(4.dp))
+                                Text(message.text, color = Color.White, fontSize = 11.sp, lineHeight = 16.sp)
+                                if (!message.fromUser && message.text.isNotBlank() && message.text != "Thinking on this device…") {
+                                    TextButton(onClick = { speak(message.text) }, contentPadding = PaddingValues(0.dp)) { Text("▶ PLAY VOICE", color = Cyan, fontSize = 8.sp) }
                                 }
                             }
                         }
@@ -566,171 +435,106 @@ private fun ChatScreen(
                 }
             }
         }
-        Row(
-            Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp)
-                .clip(RoundedCornerShape(18.dp)).background(Panel).padding(7.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            BasicTextField(
-                value = draft, onValueChange = onDraft, modifier = Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 12.dp),
-                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 14.sp),
-                cursorBrush = Brush.linearGradient(listOf(Cyan, Gold)),
-                decorationBox = { inner ->
-                    Box {
-                        if (draft.isEmpty()) Text("Message HAIRA...", color = Muted, fontSize = 13.sp)
-                        inner()
-                    }
-                }
-            )
-            IconButton(onClick = onMic) { Text("🎙", fontSize = 18.sp) }
-            Button(onClick = onSend, contentPadding = PaddingValues(horizontal = 15.dp, vertical = 8.dp), shape = RoundedCornerShape(13.dp)) {
-                Text("SEND", fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            }
+        Row(Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 8.dp).clip(RoundedCornerShape(15.dp)).background(Panel).padding(5.dp), verticalAlignment = Alignment.CenterVertically) {
+            BasicTextField(value = draft, onValueChange = onDraft, modifier = Modifier.weight(1f).padding(horizontal = 8.dp, vertical = 10.dp), textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 12.sp), cursorBrush = Brush.linearGradient(listOf(Cyan, Gold)), decorationBox = { inner -> Box { if (draft.isEmpty()) Text("Message HAIRA…", color = Muted, fontSize = 11.sp); inner() } })
+            IconButton(onClick = onMic, enabled = !busy) { Text("🎙", fontSize = 16.sp) }
+            Button(onClick = onSend, enabled = !busy && draft.isNotBlank(), contentPadding = PaddingValues(horizontal = 11.dp, vertical = 6.dp)) { Text(if (busy) "…" else "SEND", fontSize = 9.sp) }
         }
     }
 }
 
 @Composable
-private fun MemoryScreen(messages: List<ChatMessage>, search: String, onSearch: (String) -> Unit) {
+private fun MemoryScreen(messages: List<HairaMessage>, memories: List<HairaMemory>, search: String, onSearch: (String) -> Unit, memoryDraft: String, onMemoryDraft: (String) -> Unit, onAddMemory: () -> Unit, onDeleteMemory: (Long) -> Unit) {
     Column(Modifier.fillMaxSize()) {
-        Text("MEMORY VAULT", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-        Text("Local conversation history", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(bottom = 12.dp))
-        OutlinedTextField(
-            value = search, onValueChange = onSearch, modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Search saved messages...", color = Muted) },
-            singleLine = true, shape = RoundedCornerShape(14.dp),
-            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Cyan, unfocusedBorderColor = Color(0xFF294052), cursorColor = Cyan)
-        )
-        val filtered = messages.filter { it.text.contains(search, ignoreCase = true) }.asReversed()
-        if (filtered.isEmpty()) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text(if (messages.isEmpty()) "No saved conversations yet." else "No matching messages.", color = Muted, fontSize = 13.sp)
-            }
-        } else {
-            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(filtered) { item ->
-                    Surface(color = Panel, shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(13.dp)) {
-                            Text(if (item.fromUser) "YOU" else "HAIRA", color = if (item.fromUser) Gold else Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                            Spacer(Modifier.height(4.dp))
-                            Text(item.text, color = Color.White, fontSize = 12.sp, lineHeight = 17.sp)
-                            Text(SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(item.time)), color = Muted, fontSize = 9.sp, modifier = Modifier.padding(top = 6.dp))
-                        }
+        Text("MEMORY VAULT", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+        Text("Search chats and manage pinned notes saved on this phone.", color = Muted, fontSize = 9.sp, modifier = Modifier.padding(bottom = 7.dp))
+        OutlinedTextField(value = memoryDraft, onValueChange = onMemoryDraft, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Add a memory note…") }, singleLine = true)
+        Button(onClick = onAddMemory, enabled = memoryDraft.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("SAVE MEMORY NOTE") }
+        OutlinedTextField(value = search, onValueChange = onSearch, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Search messages and notes…") }, singleLine = true)
+        val saved = memories.filter { it.text.contains(search, true) }.asReversed()
+        val history = messages.filter { it.text.contains(search, true) }.asReversed()
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 7.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (saved.isNotEmpty()) item { Text("PINNED MEMORIES", color = Gold, fontSize = 8.sp, fontWeight = FontWeight.Bold) }
+            items(saved, key = { "m" + it.id }) { item ->
+                Surface(color = Panel, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(item.text, color = Color.White, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { onDeleteMemory(item.id) }) { Text("DELETE", color = Color(0xFFFF9B9B), fontSize = 8.sp) }
                     }
                 }
             }
+            if (history.isNotEmpty()) item { Text("CHAT HISTORY", color = Cyan, fontSize = 8.sp, fontWeight = FontWeight.Bold) }
+            items(history, key = { "c" + it.id }) { item ->
+                Surface(color = Panel, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(9.dp)) {
+                        Text(if (item.fromUser) "YOU" else "HAIRA", color = if (item.fromUser) Gold else Cyan, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                        Text(item.text, color = Color.White, fontSize = 10.sp)
+                        Text(SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(item.time)), color = Muted, fontSize = 8.sp)
+                    }
+                }
+            }
+            if (saved.isEmpty() && history.isEmpty()) item { Text("No matching saved information.", color = Muted, fontSize = 10.sp) }
         }
     }
 }
 
 @Composable
-private fun SettingsScreen(
-    messageCount: Int,
-    config: GatewayConfig,
-    status: String,
-    testing: Boolean,
-    autoSpeak: Boolean,
-    onAutoSpeakChange: (Boolean) -> Unit,
-    onConfigChange: (GatewayConfig) -> Unit,
-    onSave: () -> Unit,
-    onTest: () -> Unit,
-    onClear: () -> Unit
-) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("SYSTEM SETTINGS", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-        Text("Remote AI gateway connection", color = Muted, fontSize = 11.sp)
-        Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("SELECT GATEWAY", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    listOf("FreeLLMAPI", "OmniRoute", "Custom").forEach { provider ->
-                        val selected = config.provider == provider
-                        if (selected) Button(onClick = {}, enabled = false, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp)) {
-                            Text(provider, fontSize = 10.sp)
-                        } else OutlinedButton(
-                            onClick = {
-                                val next = when (provider) {
-                                    "FreeLLMAPI" -> config.copy(provider = provider, baseUrl = "http://127.0.0.1:3001/v1", model = "auto")
-                                    "OmniRoute" -> config.copy(provider = provider, baseUrl = "http://127.0.0.1:20128/v1", model = "auto")
-                                    else -> config.copy(provider = provider)
-                                }
-                                onConfigChange(next)
-                            },
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp)
-                        ) { Text(provider, fontSize = 10.sp) }
-                    }
-                }
-                OutlinedTextField(
-                    value = config.baseUrl,
-                    onValueChange = { onConfigChange(config.copy(baseUrl = it)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Gateway Base URL") },
-                    placeholder = { Text("https://your-server.example/v1") },
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = config.model,
-                    onValueChange = { onConfigChange(config.copy(model = it)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Model ID") },
-                    placeholder = { Text("auto or exact model ID") },
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = config.apiKey,
-                    onValueChange = { onConfigChange(config.copy(apiKey = it)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Gateway API key (optional for keyless setups)") },
-                    visualTransformation = PasswordVisualTransformation(),
-                    singleLine = true
-                )
-                Text("FreeLLMAPI normally needs its unified key. OmniRoute can allow keyless local routing when its server is configured that way. Provider credentials, if required, are configured in the gateway dashboard — not here.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
-                Text("For same-phone Termux setups, 127.0.0.1 points to this phone. For a gateway running on another device, enter that device's reachable LAN address. Use HTTPS for remote servers; plain HTTP can expose your key on an untrusted network.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
-                Text(status, color = if (status.startsWith("Gateway reachable") || status.startsWith("Settings saved")) Color(0xFF8BE0B0) else Color(0xFFFFC477), fontSize = 10.sp, lineHeight = 15.sp)
-                Button(onClick = onSave, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
-                    Text("SAVE GATEWAY SETTINGS")
-                }
-                OutlinedButton(onClick = onTest, enabled = !testing, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
-                    Text(if (testing) "TESTING CONNECTION..." else "TEST CONNECTION / LOAD MODELS")
-                }
+private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: String, onImport: () -> Unit) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("LOCAL MODEL MANAGER", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+        Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(if (loaded) "MODEL LOADED" else "NO MODEL ACTIVE", color = if (loaded) Color(0xFF8BE0B0) else Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(status, color = Color.White, fontSize = 10.sp, lineHeight = 15.sp)
+                if (path.isNotBlank()) Text(File(path).name, color = Muted, fontSize = 8.sp)
+                Button(onClick = onImport, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "PLEASE WAIT…" else "IMPORT .LITERTLM MODEL") }
             }
         }
-        SettingRow("Conversation storage", "Last 300 messages on this device")
-        SettingRow("Gateway security", "API key encrypted with Android Keystore")
-        Surface(color = Panel, shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
-            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        SettingRow("Runtime", "Google LiteRT-LM • CPU backend")
+        SettingRow("Model format", "Compatible .litertlm file")
+        SettingRow("Storage", "Model copied to HAIRA private storage; not bundled inside APK")
+        SettingRow("AI network", "Inference runs locally. No AI API key or remote AI endpoint.")
+        SettingRow("Device limits", "Model files may be large. Speed and stability depend on model size, free RAM, heat and storage. Start with a small model.")
+        Text("A model file is required for general AI chat. Without one, chat history, pinned memories, device TTS and listed Android shortcuts remain available.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+    }
+}
+
+@Composable
+private fun SettingsScreen(messageCount: Int, memoryCount: Int, autoSpeak: Boolean, onAutoSpeak: (Boolean) -> Unit, onClearChat: () -> Unit, onClearAll: () -> Unit) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Text("SYSTEM SETTINGS", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+        Surface(color = Panel, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Speak AI replies automatically", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Uses the phone's installed text-to-speech voice", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+                    Text("Speak replies automatically", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Uses the phone's installed TTS voice.", color = Muted, fontSize = 8.sp)
                 }
-                Switch(checked = autoSpeak, onCheckedChange = onAutoSpeakChange)
+                Switch(checked = autoSpeak, onCheckedChange = onAutoSpeak)
             }
         }
-        SettingRow("Voice output", "Android TextToSpeech • adjustable speech rate and pitch")
-        SettingRow("Voice input", "Android speech recognizer • offline preferred when supported; availability varies")
-        SettingRow("Phone commands", "Open YouTube, Android Settings and Camera; reminders open Calendar form")
-        SettingRow("Image understanding", "Not included in this text-chat connection yet")
-        SettingRow("Saved messages", messageCount.toString())
-        Spacer(Modifier.height(8.dp))
-        Surface(color = Color(0xFF29191B), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(15.dp)) {
-                Text("CLEAR LOCAL CHAT", color = Color(0xFFFF9B9B), fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                Text("This permanently removes saved conversation history from this app.", color = Color(0xFFD7B7B7), fontSize = 10.sp, modifier = Modifier.padding(top = 5.dp, bottom = 10.dp))
-                OutlinedButton(onClick = onClear, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(11.dp)) {
-                    Text("CLEAR ALL MESSAGES", color = Color(0xFFFF9B9B), fontSize = 10.sp)
-                }
+        SettingRow("AI architecture", "Local LiteRT-LM inference • no remote AI endpoint")
+        SettingRow("Conversation storage", messageCount.toString() + " messages saved locally")
+        SettingRow("Pinned memories", memoryCount.toString() + " notes saved locally")
+        SettingRow("Voice input", "Android speech recognizer • offline preference depends on installed speech service")
+        SettingRow("Voice output", "Android TextToSpeech • installed device voices and languages")
+        SettingRow("Microphone", "Speech recognizer requests microphone access when voice input starts")
+        Surface(color = Color(0xFF29191B), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text("CLEAR LOCAL DATA", color = Color(0xFFFF9B9B), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                OutlinedButton(onClick = onClearChat, modifier = Modifier.fillMaxWidth()) { Text("CLEAR CHAT HISTORY", color = Color(0xFFFF9B9B), fontSize = 8.sp) }
+                OutlinedButton(onClick = onClearAll, modifier = Modifier.fillMaxWidth()) { Text("CLEAR ALL LOCAL MEMORY", color = Color(0xFFFF9B9B), fontSize = 8.sp) }
             }
         }
-        Text("HAIRA AI • ANDROID BUILD 0.5.0", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
+        Text("HAIRA AI • PART 1 • BUILD 0.6.0", color = Muted, fontSize = 8.sp)
     }
 }
 
 @Composable
 private fun SettingRow(title: String, value: String) {
-    Surface(color = Panel, shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(14.dp)) {
-            Text(title, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            Text(value, color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+    Surface(color = Panel, shape = RoundedCornerShape(11.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(11.dp)) {
+            Text(title, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            Text(value, color = Muted, fontSize = 8.sp, lineHeight = 13.sp, modifier = Modifier.padding(top = 3.dp))
         }
     }
 }
