@@ -31,7 +31,7 @@ class GitHubManagerClient {
  }
  fun readFile(token:String,owner:String,repo:String,path:String,callback:(Result<Pair<String,String>>)->Unit)=async(callback){
   val x=JSONObject(request(token,"/repos/$owner/$repo/contents/"+encodePath(path)))
-  val bytes=Base64.decode(x.optString("content").replace("\\n",""),Base64.DEFAULT)
+  val bytes=Base64.decode(x.optString("content").replace("\n",""),Base64.DEFAULT)
   String(bytes,Charsets.UTF_8) to x.optString("sha")
  }
  fun saveFile(token:String,owner:String,repo:String,path:String,content:String,sha:String,branch:String,message:String,callback:(Result<String>)->Unit)=async(callback){
