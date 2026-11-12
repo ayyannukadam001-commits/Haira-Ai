@@ -586,15 +586,43 @@ private fun ModelScreen(path: String, loaded: Boolean, busy: Boolean, status: St
                 Text(if (loaded) "MODEL LOADED" else "NO MODEL ACTIVE", color = if (loaded) Color(0xFF8BE0B0) else Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 Text(status, color = Color.White, fontSize = 10.sp, lineHeight = 15.sp)
                 if (path.isNotBlank()) Text(File(path).name, color = Muted, fontSize = 8.sp)
-                Button(onClick = onImport, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "PLEASE WAIT…" else "IMPORT .LITERTLM MODEL") }
+                Button(onClick = onImport, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "PLEASE WAIT…" else "IMPORT COMPATIBLE .LITERTLM MODEL") }
             }
         }
-        SettingRow("Runtime", "Google LiteRT-LM • CPU backend")
-        SettingRow("Model format", "Bundled Qwen3 .litertlm model")
-        SettingRow("Storage", "Qwen3 0.6B is bundled in this APK and copied to private storage on first launch")
-        SettingRow("AI network", "Inference runs locally. No AI API key or remote AI endpoint.")
-        SettingRow("Device limits", "Model files may be large. Speed and stability depend on model size, free RAM, heat and storage. Start with a small model.")
-        Text("A model file is required for general AI chat. Without one, chat history, pinned memories, device TTS and listed Android shortcuts remain available.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+        Text("MODEL CANDIDATES", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+        ModelCandidateCard(
+            "Gemma 3 1B INT4 QAT",
+            "Approx. 529 MB • LiteRT candidate",
+            "PRIMARY CANDIDATE — access is gated by the model licence. Exact downloadable LiteRT-LM artifact and checksum still need verification.",
+            Gold
+        )
+        ModelCandidateCard(
+            "NanoLM-0.3B-Instruct-v1.1",
+            "Approx. 274 MB • GGUF Q4_K_M",
+            "SECONDARY CANDIDATE — the current LiteRT-LM engine cannot load GGUF. A separate, tested llama.cpp runtime is required before this can work.",
+            Gold
+        )
+        ModelCandidateCard(
+            "Qwen3 0.6B LiteRT-LM",
+            "Approx. 586 MB • current bundled fallback",
+            "CURRENT BASELINE — keep until both replacement candidates pass load, response, memory and thermal tests on the target phone.",
+            Color(0xFF8BE0B0)
+        )
+        SettingRow("Current runtime", "Google LiteRT-LM • CPU backend")
+        SettingRow("External model access", "Public catalogue checks only; hosted inference authentication is not bypassed")
+        SettingRow("Local privacy", "Installed local model inference stays on-device")
+        Text("Candidate models are not shown as installed or active until their exact files load and generate a verified response.", color = Muted, fontSize = 9.sp, lineHeight = 14.sp)
+    }
+}
+
+@Composable
+private fun ModelCandidateCard(title: String, meta: String, status: String, statusColor: Color) {
+    Surface(color = Panel, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(title, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(meta, color = Cyan, fontSize = 8.sp)
+            Text(status, color = statusColor, fontSize = 8.sp, lineHeight = 13.sp)
+        }
     }
 }
 
@@ -611,7 +639,7 @@ private fun SettingsScreen(messageCount: Int, memoryCount: Int, autoSpeak: Boole
                 Switch(checked = autoSpeak, onCheckedChange = onAutoSpeak)
             }
         }
-        SettingRow("AI architecture", "Local LiteRT-LM inference • no remote AI endpoint")
+        SettingRow("AI architecture", "Local LiteRT-LM inference; external provider catalogue checks only")
         SettingRow("Conversation storage", messageCount.toString() + " messages saved locally")
         SettingRow("Pinned memories", memoryCount.toString() + " notes saved locally")
         SettingRow("Voice input", "Android speech recognizer • offline preference depends on installed speech service")
