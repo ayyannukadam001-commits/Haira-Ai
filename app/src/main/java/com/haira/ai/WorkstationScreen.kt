@@ -23,7 +23,7 @@ private val WorkCyan = Color(0xFF55E6F2)
 private val WorkMuted = Color(0xFF8CA4B8)
 private val WorkGold = Color(0xFFD7B56D)
 
-private data class WorkTask(val title: String, val state: String)
+private data class WorkTask(val id: String, val title: String, val state: String)
 
 @Composable
 fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: List<HairaToolDescriptor>, modelStatus: String, modelBusy: Boolean, downloadProgress: Float, onDownloadStarterModel: () -> Unit, onOpenModel: () -> Unit, onReturnNormal: () -> Unit, onExecuteTask: (String) -> String?) {
@@ -42,7 +42,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
         tasks = File(workspace, "tasks").listFiles()?.filter { it.extension == "task" }?.mapNotNull { f ->
             val lines = runCatching { f.readLines() }.getOrNull() ?: return@mapNotNull null
             val title = lines.firstOrNull().orEmpty()
-            if (title.isBlank()) null else WorkTask(title, lines.getOrNull(1) ?: "QUEUED")
+            if (title.isBlank()) null else WorkTask(f.name, title, lines.getOrNull(1) ?: "QUEUED")
         } ?: emptyList()
     }
     LaunchedEffect(Unit) { refresh() }
@@ -178,7 +178,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
                         }
                     }, enabled = newTask.isNotBlank()) { Text("ADD TO QUEUE", fontSize = 9.sp) }
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        items(tasks, key = { it.title }) { task ->
+                        items(tasks, key = { it.id }) { task ->
                             Surface(color = WorkPanel, shape = RoundedCornerShape(8.dp)) {
                                 Row(Modifier.fillMaxWidth().padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f)) {
@@ -187,7 +187,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
                                     }
                                     if (task.state != "DONE" && task.state != "RUNNING") TextButton(onClick = {
                                         val dir = File(workspace, "tasks")
-                                        val f = dir.listFiles()?.firstOrNull { runCatching { it.readLines().firstOrNull() == task.title }.getOrDefault(false) }
+                                        val f = File(dir, task.id).takeIf { it.isFile }
                                         if (f != null) {
                                             f.writeText(task.title + "\nRUNNING")
                                             val result = onExecuteTask(task.title)
