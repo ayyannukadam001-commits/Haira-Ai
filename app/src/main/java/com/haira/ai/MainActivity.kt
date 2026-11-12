@@ -84,7 +84,8 @@ class MainActivity : ComponentActivity() {
                 initialModelPath = getSharedPreferences("haira_model", MODE_PRIVATE).getString("path", null),
                 rememberModel = { path -> getSharedPreferences("haira_model", MODE_PRIVATE).edit().putString("path", path).apply() },
                 speak = { text -> if (ttsReady) tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "haira_reply") },
-                handleCommand = ::handleCommand
+                handleCommand = ::handleCommand,
+                toolDescriptors = toolRegistry.tools
             )
         }
     }
@@ -136,7 +137,8 @@ private fun HairaApp(
     initialModelPath: String?,
     rememberModel: (String) -> Unit,
     speak: (String) -> Unit,
-    handleCommand: (String) -> String?
+    handleCommand: (String) -> String?,
+    toolDescriptors: List<HairaToolDescriptor>
 ) {
     val messages = remember { mutableStateListOf<HairaMessage>().apply { addAll(memoryStore.loadMessages()) } }
     val memories = remember { mutableStateListOf<HairaMemory>().apply { addAll(memoryStore.loadMemories()) } }
@@ -268,7 +270,7 @@ private fun HairaApp(
                     WorkstationScreen(
                         context = context,
                         modelLoaded = modelLoaded,
-                        toolDescriptors = toolRegistry.tools,
+                        toolDescriptors = toolDescriptors,
                         modelStatus = modelStatus,
                         modelBusy = modelBusy,
                         downloadProgress = downloadProgress,
