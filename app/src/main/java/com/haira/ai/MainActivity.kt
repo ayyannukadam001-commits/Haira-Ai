@@ -141,7 +141,8 @@ private fun HairaApp(
     speak: (String) -> Unit,
     handleCommand: (String) -> String?,
     toolDescriptors: List<HairaToolDescriptor>,
-    executeLocalTask: (String) -> String?
+    executeLocalTask: (String) -> String?,
+    onOpenExternalPlugin: (String) -> String
 ) {
     val messages = remember { mutableStateListOf<HairaMessage>().apply { addAll(memoryStore.loadMessages()) } }
     val memories = remember { mutableStateListOf<HairaMemory>().apply { addAll(memoryStore.loadMemories()) } }
@@ -307,7 +308,8 @@ private fun HairaApp(
                         },
                         onOpenModel = { seriousMode = false; tab = "MODEL" },
                         onReturnNormal = { seriousMode = false },
-                        onExecuteTask = executeLocalTask
+                        onExecuteTask = executeLocalTask,
+                        onOpenExternalPlugin = onOpenExternalPlugin
                     )
                 } else when (tab) {
                     "HOME" -> HomeScreen(messages.size, memories.size, modelLoaded, modelStatus) { tab = "CHAT" }
