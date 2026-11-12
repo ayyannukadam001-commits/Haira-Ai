@@ -230,7 +230,7 @@ private fun HairaApp(
         addMessage(text, true)
         val normalizedCommand = text.lowercase(Locale.ROOT).trim().replace(Regex("\\s+"), " ")
         val appCommandReply: String? = when {
-            normalizedCommand in setOf("activate work mode", "open work mode", "work mode", "landscape mode", "activate landscape mode", "switch to landscape", "serious mode", "work mode kholo", "landscape mode on karo", "landscape kholo", "work mode chalu karo", "काम मोड") -> {
+            normalizedCommand in setOf("activate work mode", "open work mode", "work mode", "landscape mode", "activate landscape mode", "switch to landscape", "serious mode", "work mode kholo", "landscape mode on karo", "landscape kholo", "work mode chalu karo") -> {
                 seriousMode = true
                 "Work Mode activate ho raha hai. HAIRA landscape dashboard khul raha hai."
             }
