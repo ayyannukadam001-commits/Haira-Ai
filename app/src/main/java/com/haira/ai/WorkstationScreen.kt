@@ -62,7 +62,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
             Text("HAIRA", color = WorkCyan, fontSize = 21.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
             Text("SERIOUS MODE", color = WorkGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             HorizontalDivider(color = WorkCyan.copy(alpha = 0.25f))
-            listOf("OVERVIEW", "SELF SETUP", "TOOLS", "FILES", "CODE", "RESEARCH", "TASK QUEUE", "STUDIOS").forEach { item ->
+            listOf("OVERVIEW", "SELF SETUP", "TOOLS", "FILES", "CODE", "TASK QUEUE").forEach { item ->
                 TextButton(onClick = { section = item }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(5.dp)) {
                     Text((if (section == item) "▸ " else "") + item, color = if (section == item) WorkCyan else WorkMuted, fontSize = 9.sp)
                 }
@@ -170,74 +170,7 @@ fun WorkstationScreen(context: Context, modelLoaded: Boolean, toolDescriptors: L
                     Text("Editor saves source/text files. It does not compile or run Android projects on-device.", color = WorkMuted, fontSize = 8.sp)
                     Text(status, color = WorkMuted, fontSize = 8.sp)
                 }
-                "RESEARCH" -> {
-                    Text("Research notebook", color = WorkCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    Text("Create a local Markdown note for questions, findings and source links.", color = WorkMuted, fontSize = 9.sp)
-                    Button(onClick = { section = "CODE"; fileName = "research-notes.md"; editorText = "# Research Notes\n\n## Question\n\n## Findings\n\n## Sources\n" }) { Text("CREATE RESEARCH NOTE", fontSize = 9.sp) }
-                    Text("This notebook does not claim to browse the internet; research sources must be gathered separately.", color = WorkMuted, fontSize = 8.sp)
-                }
-                "TASK QUEUE" -> {
-                    Text("Add a supported local command. Examples: create note: project ideas • create project: My App • list workspace files • search workspace: meeting", color = WorkMuted, fontSize = 9.sp)
-                    OutlinedTextField(value = newTask, onValueChange = { newTask = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Task command") }, singleLine = true)
-                    Button(onClick = {
-                        val title = newTask.trim()
-                        if (title.isNotEmpty()) {
-                            val dir = File(workspace, "tasks").apply { mkdirs() }
-                            File(dir, "task-" + System.currentTimeMillis() + ".task").writeText(title + "\nQUEUED")
-                            newTask = ""; refresh(); status = "Task queued. Press RUN when ready."
-                        }
-                    }, enabled = newTask.isNotBlank()) { Text("ADD TO QUEUE", fontSize = 9.sp) }
-                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        items(tasks, key = { it.id }) { task ->
-                            Surface(color = WorkPanel, shape = RoundedCornerShape(8.dp)) {
-                                Row(Modifier.fillMaxWidth().padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(task.title, color = Color.White, fontSize = 10.sp)
-                                        Text(task.state, color = if (task.state == "DONE") Color(0xFF8BE0B0) else if (task.state == "FAILED" || task.state == "INTERRUPTED") Color(0xFFFF8A80) else WorkGold, fontSize = 8.sp)
-                                    }
-                                    if (task.state != "DONE" && task.state != "RUNNING") TextButton(enabled = executingTaskId == null, onClick = {
-                                        val dir = File(workspace, "tasks")
-                                        val f = File(dir, task.id).takeIf { it.isFile }
-                                        if (f != null) {
-                                            tasks = tasks.map { if (it.id == task.id) it.copy(state = "RUNNING") else it }
-                                            taskScope.launch {
-                                                executingTaskId = task.id
-                                                try {
-                                                    val execution = withContext(Dispatchers.IO) {
-                                                        runCatching {
-                                                            f.writeText(task.title + "\nRUNNING")
-                                                            onExecuteTask(task.title)
-                                                        }
-                                                    }
-                                                    withContext(Dispatchers.IO) {
-                                                        f.writeText(task.title + "\n" + if (execution.getOrNull() == null) "FAILED" else "DONE")
-                                                    }
-                                                    status = execution.fold(
-                                                        onSuccess = { it ?: "Unsupported command. Use one of the listed local tool commands." },
-                                                        onFailure = { "Task failed: " + (it.message ?: "Unknown error") }
-                                                    )
-                                                    refresh()
-                                                } finally {
-                                                    executingTaskId = null
-                                                }
-                                            }
-                                        }
-                                    }) { Text("RUN", color = WorkCyan, fontSize = 8.sp) }
-                                }
-                            }
-                        }
-                        if (tasks.isEmpty()) item { Text("Queue is empty.", color = WorkMuted, fontSize = 10.sp) }
-                    }
-                    Text(status, color = WorkMuted, fontSize = 8.sp)
-                    Text("Execution is user-started and foreground-only. Only reviewed local workspace tools run; no shell commands, downloaded code, or silent background execution.", color = WorkGold, fontSize = 8.sp)
-                }
-                "STUDIOS" -> {
-                    Panel("CODING STUDIO", "Available now: create, open and save text/source files.") { OutlinedButton(onClick = { section = "CODE" }) { Text("OPEN EDITOR", fontSize = 9.sp) } }
-                    Panel("PROJECT STUDIO", "Available now: local project workspace and file manager.") { OutlinedButton(onClick = { section = "FILES" }) { Text("OPEN FILE MANAGER", fontSize = 9.sp) } }
-                    Panel("RESEARCH STUDIO", "Available now: local Markdown research notebook.") { OutlinedButton(onClick = { section = "RESEARCH" }) { Text("OPEN NOTEBOOK", fontSize = 9.sp) } }
-                    Panel("DESIGN / IMAGE / VIDEO / 3D", "Generation is not active yet. These need compatible local models and rendering pipelines; no fake generate controls are shown.")
-                    Panel("VOICE STUDIO", "Part 1 device speech input and TextToSpeech remain in Normal Mode. Advanced voice configuration is deferred.")
-                }
+
             }
         }
     }
